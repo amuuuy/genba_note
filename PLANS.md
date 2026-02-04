@@ -12,7 +12,7 @@ When discussing an executable specification (ExecPlan), record decisions in a lo
  
 When researching a design with challenging requirements or significant unknowns, use milestones to implement proof of concepts, "toy implementations", etc., that allow validating whether the user's proposal is feasible. Read the source code of libraries by finding or acquiring them, research deeply, and include prototypes to guide a fuller implementation.
 
-Mandatory review gate (codex-review SKILL): End each milestone by running the codex-review SKILL to iterate review→fix→re-review until clean, then proceed.
+Mandatory review gate: End each milestone by running a code review (e.g., codex-review skill in Claude Code) to iterate review→fix→re-review until clean, then proceed.
  
 ## Requirements
  

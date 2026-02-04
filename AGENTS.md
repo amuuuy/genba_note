@@ -1,4 +1,4 @@
-# AGENTS.md instructions for /Users/yuma/VScode_projects/skill-creator
+# AGENTS.md instructions for genba_note
 
 <INSTRUCTIONS>
 ## Skills
@@ -27,7 +27,7 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
 
 # ExecPlans
  
-When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation.
+When writing complex features or significant refactors, use an ExecPlan (as described in PLANS.md) from design to implementation.
 
 ## Test-Driven Development (TDD)
 
@@ -62,4 +62,4 @@ Treat test results as primary evidence, not afterthought. Do not declare a miles
 - 実行前にExecPlanでバックアップ/ロールバック手順を文書化する
 
 **パーミッション設定:**
-危険な操作は `.claude/settings.json` のdenyリストで制限されています。詳細は [settings.json](.claude/settings.json) を参照してください。
+危険な操作は `.claude/settings.local.json` のdenyリストで制限されています。詳細は [settings.local.json](.claude/settings.local.json) を参照してください。

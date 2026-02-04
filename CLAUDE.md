@@ -1,6 +1,8 @@
 # Review gate (codex-review)
 At key milestones—after updating specs/plans, after major implementation steps (≥5 files / public API / infra-config), and before commit/PR/release—run the codex-review SKILL and iterate review→fix→re-review until clean.
 
+Note: The codex-review skill is available in Claude Code. If using OpenAI Codex, use an equivalent code review process.
+
 ## Test-Driven Development (TDD)
 
 Favor test-driven development whenever you implement a new feature or fix a defect. For each behavior you change, add or refine the smallest automated test that would catch a regression before you touch production code.
@@ -34,4 +36,4 @@ Treat test results as primary evidence, not afterthought. Do not declare a miles
 - 実行前にExecPlanでバックアップ/ロールバック手順を文書化する
 
 **パーミッション設定:**
-危険な操作は `.claude/settings.json` のdenyリストで制限されています。詳細は [settings.json](.claude/settings.json) を参照してください。
+危険な操作は `.claude/settings.local.json` のdenyリストで制限されています。詳細は [settings.local.json](.claude/settings.local.json) を参照してください。

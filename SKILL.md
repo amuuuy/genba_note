@@ -1,7 +1,6 @@
 ---
 name: skill-creator
-description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
-license: Complete terms in LICENSE.txt
+description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends the assistant's capabilities with specialized knowledge, workflows, or tool integrations.
 ---
 
 # Skill Creator
@@ -10,9 +9,9 @@ This skill provides guidance for creating effective skills.
 
 ## Quick Reference
 
-Skills are modular packages that extend Claude's capabilities with specialized knowledge, workflows, and tools. Each skill requires a `SKILL.md` file and may include bundled resources (`scripts/`, `references/`, `assets/`).
+Skills are modular packages that extend the assistant's capabilities with specialized knowledge, workflows, and tools. Each skill requires a `SKILL.md` file and may include bundled resources (`scripts/`, `references/`, `assets/`).
 
-For detailed information about skills and the creation process, read [references/skill-guide.md](references/skill-guide.md).
+For detailed information about skills and the creation process, see the Creation Process Overview below.
 
 ## Skill Structure
 
@@ -33,7 +32,7 @@ skill-name/
 5. **Package** - Run `scripts/package_skill.py <skill-folder>`
 6. **Iterate** - Test and refine based on real usage
 
-For step-by-step details, see [references/skill-guide.md](references/skill-guide.md).
+For step-by-step details, follow the process outlined above.
 
 ## Key Scripts
 
