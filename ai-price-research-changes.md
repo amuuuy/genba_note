@@ -1,86 +1,76 @@
-# AI資材価格リサーチ機能 - 変更ファイル一覧
+# AI資材価格リサーチ機能 - Milestone別 変更一覧
 
-## 新規作成ファイル (10)
+---
 
-### Supabase Edge Function
-- `supabase/functions/gemini-search/index.ts`
-  - Gemini API プロキシ（Google Search grounding付き）
-  - JWT認証、レート制限（5 req/min per IP）
-  - Flash / Pro モデル切替対応
+## Milestone 1: 型定義 + 設定層
+> AI検索に必要な型と設定の土台
 
-### ドメイン層
-- `genba-note/src/domain/materialResearch/geminiMappingService.ts`
-  - `parseGeminiJsonBlock()` — LLMレスポンスからJSONブロック抽出
-  - `mapGeminiResponse()` — Edge Function レスポンス → `AiSearchResponse`
-  - `aiPriceItemToSearchResult()` — 既存型への変換
-  - `aiPriceItemToUnitPriceInput()` — 単価マスタ登録用変換（税抜き計算含む）
+| 操作 | ファイル | 内容 |
+|------|---------|------|
+| 修正 | `genba-note/src/types/materialResearch.ts` | `AiSearchModel`, `AiPriceItem`, `AiSearchResponse` 等の型追加 |
+| 修正 | `genba-note/src/types/settings.ts` | `AppSettings.aiSearchModel` フィールド追加 |
+| 修正 | `genba-note/src/storage/asyncStorageService.ts` | `mergeSettingsWithDefaults()` にバリデーション追加 |
+| 修正 | `genba-note/__tests__/pdf/issuerResolverService.test.ts` | AppSettingsリテラルに `aiSearchModel: 'FLASH'` 追加 |
 
-- `genba-note/src/domain/materialResearch/geminiSearchService.ts`
-  - `searchMaterialsWithAi()` — Result パターン（throw しない）
-  - エラーコード: RATE_LIMIT / API_ERROR / NETWORK_ERROR / PARSE_ERROR
+---
 
-### フック
-- `genba-note/src/hooks/useAiPriceSearch.ts`
-  - query, result, isLoading, error, model, setModel, search, clear
+## Milestone 2: Edge Function（サーバー側）
+> Gemini APIプロキシ
 
-### UIコンポーネント
-- `genba-note/src/components/unitPrice/AiPriceItemCard.tsx`
-  - AI価格アイテムカード（sparklesアイコン、ソースリンク、登録ボタン）
+| 操作 | ファイル | 内容 |
+|------|---------|------|
+| 新規 | `supabase/functions/gemini-search/index.ts` | Gemini API プロキシ、JWT認証、レート制限 5 req/min |
 
-- `genba-note/src/components/unitPrice/AiModelSelector.tsx`
-  - Flash ⚡ / Pro 🎯 セグメントコントロール
+---
 
-- `genba-note/src/components/unitPrice/AiSearchResultView.tsx`
-  - AI分析サマリー、推奨価格帯、価格比較リスト、情報ソース一覧
+## Milestone 3: ドメインサービス + テスト
+> パース・マッピング・API呼び出しの純粋ロジック
 
-### テスト
-- `genba-note/__tests__/domain/materialResearch/geminiMappingService.test.ts` (19テスト)
-- `genba-note/__tests__/domain/materialResearch/geminiSearchService.test.ts` (10テスト)
-- `genba-note/__tests__/hooks/useAiPriceSearch.test.ts` (5テスト)
+| 操作 | ファイル | 内容 |
+|------|---------|------|
+| 新規 | `genba-note/src/domain/materialResearch/geminiMappingService.ts` | JSONパース、型変換、税抜き計算 |
+| 新規 | `genba-note/__tests__/domain/materialResearch/geminiMappingService.test.ts` | 19テスト |
+| 新規 | `genba-note/src/domain/materialResearch/geminiSearchService.ts` | API呼び出し（Resultパターン） |
+| 新規 | `genba-note/__tests__/domain/materialResearch/geminiSearchService.test.ts` | 10テスト |
+| 修正 | `genba-note/__tests__/domain/materialResearch/helpers.ts` | テストファクトリー関数追加 |
+| 修正 | `genba-note/src/domain/materialResearch/index.ts` | re-export追加 |
 
-## 既存修正ファイル (6)
+---
 
-### 型定義
-- `genba-note/src/types/materialResearch.ts`
-  - 追加: `AiSearchModel`, `AiPriceItem`, `GroundingSource`, `AiSearchResponse`, `AiSearchParams`, `AiSearchError`, `AiSearchDomainResult<T>`, `SearchSource`
+## Milestone 4: フック + テスト
+> React状態管理
 
-- `genba-note/src/types/settings.ts`
-  - `AppSettings` に `aiSearchModel: AiSearchModel` フィールド追加
-  - `DEFAULT_APP_SETTINGS` に `aiSearchModel: 'FLASH'` 追加
+| 操作 | ファイル | 内容 |
+|------|---------|------|
+| 新規 | `genba-note/src/hooks/useAiPriceSearch.ts` | AI検索フック |
+| 新規 | `genba-note/__tests__/hooks/useAiPriceSearch.test.ts` | 5テスト |
 
-### ストレージ
-- `genba-note/src/storage/asyncStorageService.ts`
-  - `mergeSettingsWithDefaults()` に `aiSearchModel` バリデーション追加
+---
 
-### ドメイン index
-- `genba-note/src/domain/materialResearch/index.ts`
-  - geminiMappingService, geminiSearchService の re-export 追加
+## Milestone 5: UIコンポーネント
+> AI検索結果の表示部品
 
-### UI統合
-- `genba-note/src/components/unitPrice/MaterialSearchModal.tsx`
-  - タブバー追加: 「楽天検索」|「AI価格調査」
-  - 検索入力共有、アクティブタブの検索を実行
-  - AIタブ時にモデルセレクター表示
-  - 免責バナーのテキストをタブに応じて変更
+| 操作 | ファイル | 内容 |
+|------|---------|------|
+| 新規 | `genba-note/src/components/unitPrice/AiPriceItemCard.tsx` | 価格アイテムカード |
+| 新規 | `genba-note/src/components/unitPrice/AiModelSelector.tsx` | Flash/Pro切替トグル |
+| 新規 | `genba-note/src/components/unitPrice/AiSearchResultView.tsx` | 検索結果ビュー全体 |
 
-### 設定
-- `genba-note/.env.example`
-  - Gemini AI セクション追加（Supabase Secrets 経由の設定方法）
+---
 
-## テスト影響
+## Milestone 6: モーダル統合 + 設定ファイル
+> 既存UIにタブ切替を組み込み、完成
 
-### 修正が必要だったテストファイル
-- `genba-note/__tests__/pdf/issuerResolverService.test.ts`
-  - 全 `AppSettings` リテラルに `aiSearchModel: 'FLASH'` 追加
-- `genba-note/__tests__/domain/materialResearch/helpers.ts`
-  - AI用ファクトリー関数追加: `createTestAiPriceItem()`, `createTestAiSearchResponse()`, `createTestGeminiEdgeFunctionResponse()`
+| 操作 | ファイル | 内容 |
+|------|---------|------|
+| 修正 | `genba-note/src/components/unitPrice/MaterialSearchModal.tsx` | タブバー「楽天検索 / AI価格調査」統合 |
+| 修正 | `genba-note/.env.example` | Gemini設定コメント追加 |
 
-## デプロイ手順
+---
+
+## デプロイ（Milestone 2 の後に実施可能）
 
 ```bash
-# 1. Gemini API キーを設定
 supabase secrets set GEMINI_API_KEY=<your_key>
-
-# 2. Edge Function をデプロイ
 supabase functions deploy gemini-search --verify-jwt
 ```
