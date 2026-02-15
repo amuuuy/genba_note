@@ -7,13 +7,16 @@
  * Security:
  * - Requires Supabase JWT auth (verify_jwt=true in config)
  * - Per-IP rate limiting (5 requests per minute — cost management)
- * - Input validation
+ * - Input validation (length, type, JSON structure)
+ * - API key sent via header (not URL query param)
  *
  * Deploy: supabase functions deploy gemini-search --verify-jwt
  * Secret: supabase secrets set GEMINI_API_KEY=<your_key>
  */
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+const QUERY_MAX_LENGTH = 500;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,10 +28,47 @@ const corsHeaders = {
 // Rate limiter: 5 req/min per IP (stricter than Rakuten to manage AI costs)
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const MAX_TRACKED_IPS = 10_000;
+/** @internal Exported for testing only. */
+export const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+let lastCleanupAt = 0;
+const CLEANUP_INTERVAL_MS = 10_000; // Throttle cleanup to every 10 seconds
 
-function checkRateLimit(ip: string): boolean {
+/** @internal Reset rate limiter state for testing. */
+export function resetRateLimiter(): void {
+  rateLimitMap.clear();
+  lastCleanupAt = 0;
+}
+
+/** @internal Set lastCleanupAt for testing (to simulate recent cleanup). */
+export function setLastCleanupAtForTest(ts: number): void {
+  lastCleanupAt = ts;
+}
+
+/** @internal Exported for testing only. */
+export function checkRateLimit(ip: string): boolean {
   const now = Date.now();
+
+  // Prune expired entries (throttled to avoid O(n) on every request)
+  if (rateLimitMap.size > 1000 && now - lastCleanupAt >= CLEANUP_INTERVAL_MS) {
+    lastCleanupAt = now;
+    for (const [key, val] of rateLimitMap) {
+      if (now >= val.resetAt) rateLimitMap.delete(key);
+    }
+  }
+
+  // Hard cap: fail-closed when too many tracked IPs (DDoS / abuse scenario)
+  // Force cleanup on cap hit to avoid false 429 when expired entries occupy space
+  if (rateLimitMap.size >= MAX_TRACKED_IPS && !rateLimitMap.has(ip)) {
+    for (const [key, val] of rateLimitMap) {
+      if (now >= val.resetAt) rateLimitMap.delete(key);
+    }
+    lastCleanupAt = now;
+    if (rateLimitMap.size >= MAX_TRACKED_IPS) {
+      return false;
+    }
+  }
+
   const entry = rateLimitMap.get(ip);
 
   if (!entry || now >= entry.resetAt) {
@@ -44,10 +84,10 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-/** Gemini model IDs */
+/** Gemini model IDs (stable versions) */
 const MODEL_IDS: Record<string, string> = {
-  FLASH: 'gemini-2.5-flash-preview-05-20',
-  PRO: 'gemini-2.5-pro-preview-05-06',
+  FLASH: 'gemini-2.5-flash',
+  PRO: 'gemini-2.5-pro',
 };
 
 interface RequestBody {
@@ -88,58 +128,98 @@ const SYSTEM_PROMPT = `あなたは建設資材の価格調査の専門家です
 - 品番、サイズ、材質が指定されている場合はそれに合致する商品を優先してください
 - JSON以外のテキストは summary フィールドに含めてください`;
 
-Deno.serve(async (req: Request) => {
+function jsonResponse(body: Record<string, unknown>, status: number, extraHeaders?: Record<string, string>) {
+  return new Response(
+    JSON.stringify(body),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extraHeaders } }
+  );
+}
+
+/** Exported for testing. */
+export async function handler(req: Request): Promise<Response> {
+  return handleRequest(req);
+}
+
+// Guard: only start the HTTP server when run as main entry point.
+// Importing this module from tests must NOT start a listener.
+if (import.meta.main) {
+  Deno.serve(async (req: Request) => {
+    return handleRequest(req);
+  });
+}
+
+async function handleRequest(req: Request): Promise<Response> {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   // Rate limiting by client IP
-  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? req.headers.get('cf-connecting-ip')
+  // Priority: cf-connecting-ip (Cloudflare, cannot be spoofed) > x-forwarded-for (first hop)
+  // Note: rakuten-search uses x-forwarded-for first; here we prefer cf-connecting-ip for security
+  const clientIp = req.headers.get('cf-connecting-ip')
+    ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? 'unknown';
+  if (clientIp === 'unknown') {
+    console.warn('No IP header found — all requests share a single rate-limit bucket');
+  }
 
   if (!checkRateLimit(clientIp)) {
-    return new Response(
-      JSON.stringify({ error: 'Rate limit exceeded. Try again later.' }),
-      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    return jsonResponse(
+      { error: 'Rate limit exceeded. Try again later.' },
+      429,
+      { 'Retry-After': '60' }
     );
   }
 
+  // Parse request body (explicit error handling for malformed JSON)
+  let body: RequestBody;
   try {
-    const body: RequestBody = await req.json();
+    body = await req.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON in request body' }, 400);
+  }
+
+  if (!body || typeof body !== 'object') {
+    return jsonResponse({ error: 'Request body must be a JSON object' }, 400);
+  }
+
+  try {
     const { query, model = 'FLASH' } = body;
 
     // Validate query
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'query is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      return jsonResponse({ error: 'query is required' }, 400);
+    }
+
+    if (query.trim().length > QUERY_MAX_LENGTH) {
+      return jsonResponse(
+        { error: `query must be ${QUERY_MAX_LENGTH} characters or less` },
+        400
       );
     }
 
-    // Validate model
-    const modelId = MODEL_IDS[model] ?? MODEL_IDS.FLASH;
+    // Validate model (strict allowlist to prevent prototype key injection)
+    const validModel = typeof model === 'string' && Object.hasOwn(MODEL_IDS, model);
+    if (!validModel) {
+      console.warn(`Unknown model "${String(model)}", falling back to FLASH`);
+    }
+    const resolvedModel = validModel ? model : 'FLASH';
+    const resolvedModelId = MODEL_IDS[resolvedModel];
 
     // Get API key from environment
     const apiKey = Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) {
       console.error('GEMINI_API_KEY is not configured');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: 'Server configuration error' }, 500);
     }
 
-    // Build Gemini API request
-    const geminiUrl = `${GEMINI_API_BASE}/models/${modelId}:generateContent?key=${apiKey}`;
+    // Build Gemini API request (API key via header, not URL query param)
+    const geminiUrl = `${GEMINI_API_BASE}/models/${resolvedModelId}:generateContent`;
 
     const geminiBody = {
       contents: [
@@ -158,59 +238,75 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiBody),
-    });
+    // Timeout guard: prevent indefinite hangs on upstream
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+
+    let response: Response;
+    try {
+      response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify(geminiBody),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      if (fetchErr instanceof DOMException && fetchErr.name === 'AbortError') {
+        console.error('Gemini API timeout (15s)');
+        return jsonResponse({ error: 'AI API timeout' }, 504);
+      }
+      throw fetchErr; // re-throw for outer catch
+    }
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const status = response.status;
+      // Log status only — avoid logging upstream body which may contain PII
       console.error(`Gemini API error: ${status}`);
 
       if (status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'AI API rate limit exceeded' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ error: 'AI API rate limit exceeded' }, 429);
       }
 
-      return new Response(
-        JSON.stringify({ error: 'AI API error' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: 'AI API error' }, 502);
     }
 
     const data = await response.json();
     const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.[0]?.text ?? '';
+    const parts = candidate?.content?.parts;
+    const text = (Array.isArray(parts) ? parts : [])
+      .map((p: { text?: string }) => p.text ?? '')
+      .join('');
     const groundingMetadata = candidate?.groundingMetadata ?? {};
 
-    // Extract grounding sources
-    const sources = (groundingMetadata.groundingChunks ?? []).map(
+    // Extract grounding sources (defensive: guard against non-array upstream data)
+    const chunks = groundingMetadata.groundingChunks;
+    const sources = (Array.isArray(chunks) ? chunks : []).map(
       (chunk: { web?: { uri?: string; title?: string } }) => ({
         uri: chunk.web?.uri ?? '',
         title: chunk.web?.title ?? '',
       })
     );
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         text,
         sources,
-        model,
-        webSearchQueries: groundingMetadata.webSearchQueries ?? [],
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        model: resolvedModel,
+        webSearchQueries: Array.isArray(groundingMetadata.webSearchQueries)
+          ? groundingMetadata.webSearchQueries
+          : [],
+      },
+      200
     );
-  } catch (error) {
-    console.error('Edge function error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (err) {
+    // Sanitize error log to avoid leaking sensitive data (e.g. API keys in URLs)
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Edge function error:', message);
+    return jsonResponse({ error: 'Internal server error' }, 500);
   }
-});
+}
