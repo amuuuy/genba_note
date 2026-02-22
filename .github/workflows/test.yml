@@ -1,0 +1,48 @@
+# CI: Test & Type Check
+# Runs on every push to main and on all PRs targeting main.
+#
+# Branch protection (GitHub UI で手動設定):
+#   Settings → Branches → Add rule for "main":
+#   - Require status checks to pass: "test" job
+#   - Require pull request reviews: 1 reviewer
+#   - Dismiss stale pull request approvals when new commits are pushed
+
+name: Test & Type Check
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test & Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: genba-note
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: genba-note/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npx jest --ci --coverage

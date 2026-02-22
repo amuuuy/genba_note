@@ -1,0 +1,66 @@
+# CI: EAS Build
+# Triggered by pushing a version tag.
+#
+# Tag → Profile mapping:
+#   v1.0.0-dev     → development
+#   v1.0.0-preview → preview
+#   v1.0.0         → production
+#
+# Required GitHub secret:
+#   EXPO_TOKEN — EAS authentication token (https://expo.dev/accounts/[account]/settings/access-tokens)
+
+name: EAS Build
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: EAS Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: genba-note
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: genba-note/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: ^12.0.0
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Resolve build profile from tag
+        id: profile
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-dev$ ]]; then
+            echo "name=development" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-preview$ ]]; then
+            echo "name=preview" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "name=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Unrecognized tag format: $TAG (expected vX.Y.Z, vX.Y.Z-dev, or vX.Y.Z-preview)"
+            exit 1
+          fi
+
+      - name: Build
+        run: eas build --platform all --profile ${{ steps.profile.outputs.name }} --non-interactive
