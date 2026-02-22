@@ -84,15 +84,11 @@ export function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-/** Gemini model IDs (stable versions) */
-const MODEL_IDS: Record<string, string> = {
-  FLASH: 'gemini-2.5-flash',
-  PRO: 'gemini-2.5-pro',
-};
+/** Gemini model ID */
+const GEMINI_MODEL_ID = 'gemini-2.5-flash';
 
 interface RequestBody {
   query: string;
-  model?: 'FLASH' | 'PRO';
 }
 
 const SYSTEM_PROMPT = `あなたは建設資材の価格調査の専門家です。
@@ -189,7 +185,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   try {
-    const { query, model = 'FLASH' } = body;
+    const { query } = body;
 
     // Validate query
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -203,14 +199,6 @@ async function handleRequest(req: Request): Promise<Response> {
       );
     }
 
-    // Validate model (strict allowlist to prevent prototype key injection)
-    const validModel = typeof model === 'string' && Object.hasOwn(MODEL_IDS, model);
-    if (!validModel) {
-      console.warn(`Unknown model "${String(model)}", falling back to FLASH`);
-    }
-    const resolvedModel = validModel ? model : 'FLASH';
-    const resolvedModelId = MODEL_IDS[resolvedModel];
-
     // Get API key from environment
     const apiKey = Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) {
@@ -219,7 +207,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }
 
     // Build Gemini API request (API key via header, not URL query param)
-    const geminiUrl = `${GEMINI_API_BASE}/models/${resolvedModelId}:generateContent`;
+    const geminiUrl = `${GEMINI_API_BASE}/models/${GEMINI_MODEL_ID}:generateContent`;
 
     const geminiBody = {
       contents: [
@@ -296,7 +284,6 @@ async function handleRequest(req: Request): Promise<Response> {
       {
         text,
         sources,
-        model: resolvedModel,
         webSearchQueries: Array.isArray(groundingMetadata.webSearchQueries)
           ? groundingMetadata.webSearchQueries
           : [],

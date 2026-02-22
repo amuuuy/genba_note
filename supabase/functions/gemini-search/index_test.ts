@@ -1,7 +1,7 @@
 /**
  * Tests for gemini-search Edge Function
  *
- * Verifies rate limiting, input validation, and model fallback behavior.
+ * Verifies rate limiting, input validation, and Flash-only model behavior.
  * Run with: deno test --allow-env --allow-net supabase/functions/gemini-search/index_test.ts
  */
 
@@ -240,36 +240,6 @@ Deno.test('handler: query exceeding max length returns 400', async () => {
   assertStringIncludes(data.error, '500 characters');
 });
 
-// --- Model Validation Tests ---
-
-Deno.test('handler: invalid model falls back to FLASH in response', async () => {
-  rateLimitMap.clear();
-  await withStubs(async () => {
-    const req = makeRequest(
-      { query: 'テスト資材', model: '__proto__' },
-      { 'cf-connecting-ip': '1.2.3.7' }
-    );
-    const res = await handler(req);
-    assertEquals(res.status, 200);
-    const data = await res.json();
-    assertEquals(data.model, 'FLASH', 'invalid model should resolve to FLASH');
-  });
-});
-
-Deno.test('handler: valid PRO model is preserved in response', async () => {
-  rateLimitMap.clear();
-  await withStubs(async () => {
-    const req = makeRequest(
-      { query: 'テスト資材', model: 'PRO' },
-      { 'cf-connecting-ip': '1.2.3.8' }
-    );
-    const res = await handler(req);
-    assertEquals(res.status, 200);
-    const data = await res.json();
-    assertEquals(data.model, 'PRO', 'valid PRO model should be preserved');
-  });
-});
-
 // --- API Key Transmission Tests ---
 
 Deno.test('handler: sends x-goog-api-key header, not key query param', async () => {
@@ -312,6 +282,97 @@ Deno.test('handler: sends x-goog-api-key header, not key query param', async () 
       Deno.env.set('GEMINI_API_KEY', savedKey);
     }
   }
+});
+
+// --- Flash-Only Model Tests ---
+
+Deno.test('handler: always uses gemini-2.5-flash model in API URL', async () => {
+  rateLimitMap.clear();
+  const savedKey = Deno.env.get('GEMINI_API_KEY');
+  const savedFetch = globalThis.fetch;
+  Deno.env.set('GEMINI_API_KEY', 'test-key');
+
+  let capturedUrl = '';
+  globalThis.fetch = (input: string | URL | Request, _init?: RequestInit) => {
+    capturedUrl = typeof input === 'string' ? input : input.toString();
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          candidates: [{
+            content: { parts: [{ text: '```json\n{"items":[],"summary":"ok"}\n```' }] },
+            groundingMetadata: { groundingChunks: [], webSearchQueries: [] },
+          }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+  };
+
+  try {
+    const req = makeRequest({ query: 'テスト資材' }, { 'cf-connecting-ip': '1.2.3.9' });
+    const res = await handler(req);
+    assertEquals(res.status, 200);
+    assertStringIncludes(capturedUrl, '/models/gemini-2.5-flash:generateContent', 'must use Flash model');
+  } finally {
+    globalThis.fetch = savedFetch;
+    if (savedKey === undefined) {
+      Deno.env.delete('GEMINI_API_KEY');
+    } else {
+      Deno.env.set('GEMINI_API_KEY', savedKey);
+    }
+  }
+});
+
+Deno.test('handler: ignores model field in request body (always Flash)', async () => {
+  rateLimitMap.clear();
+  const savedKey = Deno.env.get('GEMINI_API_KEY');
+  const savedFetch = globalThis.fetch;
+  Deno.env.set('GEMINI_API_KEY', 'test-key');
+
+  let capturedUrl = '';
+  globalThis.fetch = (input: string | URL | Request, _init?: RequestInit) => {
+    capturedUrl = typeof input === 'string' ? input : input.toString();
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          candidates: [{
+            content: { parts: [{ text: '```json\n{"items":[],"summary":"ok"}\n```' }] },
+            groundingMetadata: { groundingChunks: [], webSearchQueries: [] },
+          }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+  };
+
+  try {
+    // Even if client sends model: 'PRO', the Edge Function should ignore it
+    const req = makeRequest(
+      { query: 'テスト資材', model: 'PRO' },
+      { 'cf-connecting-ip': '1.2.3.10' }
+    );
+    const res = await handler(req);
+    assertEquals(res.status, 200);
+    assertStringIncludes(capturedUrl, '/models/gemini-2.5-flash:generateContent', 'must use Flash even when PRO requested');
+  } finally {
+    globalThis.fetch = savedFetch;
+    if (savedKey === undefined) {
+      Deno.env.delete('GEMINI_API_KEY');
+    } else {
+      Deno.env.set('GEMINI_API_KEY', savedKey);
+    }
+  }
+});
+
+Deno.test('handler: response does not contain model field', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const req = makeRequest({ query: 'テスト資材' }, { 'cf-connecting-ip': '1.2.3.11' });
+    const res = await handler(req);
+    assertEquals(res.status, 200);
+    const data = await res.json();
+    assertEquals('model' in data, false, 'response should not contain model field');
+  });
 });
 
 // --- CORS Tests ---
