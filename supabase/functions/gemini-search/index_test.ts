@@ -9,7 +9,8 @@ import {
   assertEquals,
   assertStringIncludes,
 } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { handler, checkRateLimit, rateLimitMap, resetRateLimiter, setLastCleanupAtForTest } from './index.ts';
+import { handler, checkRateLimit, rateLimitMap, resetRateLimiter, setLastCleanupAtForTest, resetDailyLimiter } from './index.ts';
+import { createFakeJwt, createAnonKeyJwt, createUserJwt } from '../_shared/test_helpers.ts';
 
 // --- Helpers ---
 
@@ -52,6 +53,7 @@ function makeRequest(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${createUserJwt()}`,
       ...headers,
     },
     body: JSON.stringify(body),
@@ -167,11 +169,10 @@ Deno.test('checkRateLimit: expired entries are pruned when map > 1000', () => {
   resetRateLimiter();
 });
 
-Deno.test('checkRateLimit: cap reached with expired entries → forced cleanup frees space', () => {
+Deno.test('checkRateLimit: cap reached with expired entries → cleanup frees space for new IP', () => {
   resetRateLimiter();
-  // Set lastCleanupAt to NOW so the normal throttled cleanup (size>1000) is suppressed.
-  // This forces checkRateLimit to hit the cap-specific forced cleanup path instead.
-  setLastCleanupAtForTest(Date.now());
+  // lastCleanupAt past throttle interval — allows both normal and cap cleanup paths
+  setLastCleanupAtForTest(Date.now() - 11_000);
   const pastTime = Date.now() - 120_000; // expired
   // Fill 9999 expired + 1 active = 10000 total
   for (let i = 0; i < 9_999; i++) {
@@ -181,6 +182,18 @@ Deno.test('checkRateLimit: cap reached with expired entries → forced cleanup f
   assertEquals(rateLimitMap.size, 10_000);
   // New IP should trigger forced cleanup at cap and be allowed (not false 429)
   assertEquals(checkRateLimit('brand-new-ip'), true, 'should allow after forced cleanup at cap');
+  resetRateLimiter();
+});
+
+Deno.test('checkRateLimit: cap reached with recent cleanup → immediate 429 (no repeated O(n) scan)', () => {
+  resetRateLimiter();
+  for (let i = 0; i < 10_000; i++) {
+    rateLimitMap.set(`ip-${i}`, { count: 1, resetAt: Date.now() + 60_000 });
+  }
+  // Cleanup was just done — throttle should prevent re-scan
+  setLastCleanupAtForTest(Date.now());
+  assertEquals(checkRateLimit('attacker-1'), false, '1st new IP denied');
+  assertEquals(checkRateLimit('attacker-2'), false, '2nd new IP denied');
   resetRateLimiter();
 });
 
@@ -211,6 +224,7 @@ Deno.test('handler: malformed JSON returns 400', async () => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${createUserJwt()}`,
       'cf-connecting-ip': '1.2.3.4',
     },
     body: 'not json at all',
@@ -375,15 +389,14 @@ Deno.test('handler: response does not contain model field', async () => {
   });
 });
 
-// --- CORS Tests ---
+// --- Method Tests (CORS removed — native app only) ---
 
-Deno.test('handler: OPTIONS returns 204 with CORS headers', async () => {
+Deno.test('handler: OPTIONS returns 405 (no CORS for native app)', async () => {
   const req = new Request('http://localhost/gemini-search', {
     method: 'OPTIONS',
   });
   const res = await handler(req);
-  assertEquals(res.status, 204);
-  assertEquals(res.headers.get('Access-Control-Allow-Origin'), '*');
+  assertEquals(res.status, 405);
 });
 
 Deno.test('handler: GET returns 405', async () => {
@@ -392,6 +405,48 @@ Deno.test('handler: GET returns 405', async () => {
   });
   const res = await handler(req);
   assertEquals(res.status, 405);
+});
+
+Deno.test('handler: POST response does not include CORS headers', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const req = makeRequest({ query: 'test' }, { 'cf-connecting-ip': '1.2.3.99' });
+    const res = await handler(req);
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get('Access-Control-Allow-Origin'), null, 'should not have CORS header');
+  });
+});
+
+// --- Error Sanitization Tests ---
+
+Deno.test('handler: error log does not leak GEMINI_API_KEY', async () => {
+  rateLimitMap.clear();
+  const savedKey = Deno.env.get('GEMINI_API_KEY');
+  const apiKey = 'secret-gemini-key-99999';
+  Deno.env.set('GEMINI_API_KEY', apiKey);
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.reject(new Error(`request to https://api.google.com?key=${apiKey} failed`));
+
+  const savedConsoleError = console.error;
+  const loggedArgs: unknown[] = [];
+  console.error = (...args: unknown[]) => { loggedArgs.push(...args); };
+
+  try {
+    const req = makeRequest({ query: 'test' }, { 'cf-connecting-ip': '1.2.3.98' });
+    const res = await handler(req);
+    assertEquals(res.status, 500);
+    const logStr = loggedArgs.join(' ');
+    assertEquals(logStr.includes(apiKey), false, `log must not contain GEMINI_API_KEY: ${logStr}`);
+  } finally {
+    console.error = savedConsoleError;
+    globalThis.fetch = savedFetch;
+    if (savedKey === undefined) {
+      Deno.env.delete('GEMINI_API_KEY');
+    } else {
+      Deno.env.set('GEMINI_API_KEY', savedKey);
+    }
+  }
 });
 
 // --- Timeout Tests ---
@@ -482,4 +537,161 @@ Deno.test('handler: multi-part Gemini response text is concatenated', async () =
       Deno.env.set('GEMINI_API_KEY', savedKey);
     }
   }
+});
+
+// --- Auth Tests ---
+
+Deno.test('handler: anon key JWT returns 401', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const req = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${createAnonKeyJwt()}`, 'cf-connecting-ip': '1.2.3.100' }
+    );
+    const res = await handler(req);
+    assertEquals(res.status, 401);
+    const data = await res.json();
+    assertStringIncludes(data.error.toLowerCase(), 'unauthorized');
+  });
+});
+
+Deno.test('handler: user JWT with role=authenticated returns 200', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const req = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${createUserJwt()}`, 'cf-connecting-ip': '1.2.3.101' }
+    );
+    const res = await handler(req);
+    assertEquals(res.status, 200);
+  });
+});
+
+Deno.test('handler: missing Authorization header returns 401', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const req = new Request('http://localhost/gemini-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '1.2.3.102' },
+      body: JSON.stringify({ query: 'test' }),
+    });
+    const res = await handler(req);
+    assertEquals(res.status, 401);
+  });
+});
+
+Deno.test('handler: malformed JWT returns 401', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const req = makeRequest(
+      { query: 'test' },
+      { 'Authorization': 'Bearer not.valid.jwt', 'cf-connecting-ip': '1.2.3.103' }
+    );
+    const res = await handler(req);
+    assertEquals(res.status, 401);
+  });
+});
+
+Deno.test('handler: JWT without sub returns 401', async () => {
+  rateLimitMap.clear();
+  await withStubs(async () => {
+    const token = createFakeJwt({ role: 'authenticated' }); // no sub
+    const req = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${token}`, 'cf-connecting-ip': '1.2.3.104' }
+    );
+    const res = await handler(req);
+    assertEquals(res.status, 401);
+  });
+});
+
+// --- Daily Limit Tests ---
+
+Deno.test('handler: user at daily limit gets 429 daily_limit_exceeded', async () => {
+  resetRateLimiter();
+  resetDailyLimiter();
+  await withStubs(async () => {
+    const userId = 'daily-exhaust-user';
+    const token = createUserJwt(userId);
+    // Exhaust 50 daily requests (reset per-minute IP limit every 5 requests)
+    for (let i = 0; i < 50; i++) {
+      if (i % 5 === 0) resetRateLimiter();
+      const req = makeRequest(
+        { query: 'test' },
+        { 'Authorization': `Bearer ${token}`, 'cf-connecting-ip': `10.${i}.0.1` }
+      );
+      const res = await handler(req);
+      assertEquals(res.status, 200, `req ${i + 1} should succeed`);
+    }
+    // 51st should be daily_limit_exceeded
+    resetRateLimiter();
+    const req51 = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${token}`, 'cf-connecting-ip': '10.99.0.1' }
+    );
+    const res51 = await handler(req51);
+    assertEquals(res51.status, 429);
+    const data = await res51.json();
+    assertEquals(data.error, 'daily_limit_exceeded');
+  });
+  resetDailyLimiter();
+});
+
+Deno.test('handler: per-minute 429 is distinct from daily 429', async () => {
+  resetRateLimiter();
+  resetDailyLimiter();
+  await withStubs(async () => {
+    const token = createUserJwt('rate-vs-daily');
+    const ip = '10.200.0.1';
+    for (let i = 0; i < 5; i++) {
+      const req = makeRequest(
+        { query: 'test' },
+        { 'Authorization': `Bearer ${token}`, 'cf-connecting-ip': ip }
+      );
+      await handler(req);
+    }
+    // 6th same IP → per-minute rate limit (not daily)
+    const req6 = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${token}`, 'cf-connecting-ip': ip }
+    );
+    const res6 = await handler(req6);
+    assertEquals(res6.status, 429);
+    const data = await res6.json();
+    assertStringIncludes(data.error, 'Rate limit', 'should be per-minute rate limit, not daily');
+  });
+  resetDailyLimiter();
+});
+
+Deno.test('handler: different users have independent daily limits', async () => {
+  resetRateLimiter();
+  resetDailyLimiter();
+  await withStubs(async () => {
+    const tokenA = createUserJwt('user-A-daily');
+    const tokenB = createUserJwt('user-B-daily');
+    // Exhaust user A's daily limit
+    for (let i = 0; i < 50; i++) {
+      if (i % 5 === 0) resetRateLimiter();
+      const req = makeRequest(
+        { query: 'test' },
+        { 'Authorization': `Bearer ${tokenA}`, 'cf-connecting-ip': `10.${i}.1.1` }
+      );
+      await handler(req);
+    }
+    // User A should be blocked
+    resetRateLimiter();
+    const reqA = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${tokenA}`, 'cf-connecting-ip': '10.99.1.1' }
+    );
+    assertEquals((await handler(reqA)).status, 429);
+
+    // User B should still be allowed
+    const reqB = makeRequest(
+      { query: 'test' },
+      { 'Authorization': `Bearer ${tokenB}`, 'cf-connecting-ip': '10.99.2.1' }
+    );
+    assertEquals((await handler(reqB)).status, 200);
+  });
+  resetDailyLimiter();
 });

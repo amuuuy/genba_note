@@ -1,0 +1,9 @@
+# Supabase Edge Functions configuration
+# This file manages deployment settings declaratively (IaC).
+# Deploy: supabase functions deploy (no --verify-jwt flag needed)
+
+[functions.gemini-search]
+verify_jwt = true
+
+[functions.rakuten-search]
+verify_jwt = true

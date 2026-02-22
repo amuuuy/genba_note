@@ -9,21 +9,27 @@
  * - Per-IP rate limiting (5 requests per minute — cost management)
  * - Input validation (length, type, JSON structure)
  * - API key sent via header (not URL query param)
+ * - Native app only — no CORS headers (browser preflight will receive 405)
  *
- * Deploy: supabase functions deploy gemini-search --verify-jwt
+ * Deploy: supabase functions deploy gemini-search
+ * JWT verification: Configured in supabase/config.toml (verify_jwt=true)
  * Secret: supabase secrets set GEMINI_API_KEY=<your_key>
  */
+
+import { extractUserId } from '../_shared/auth.ts';
+import { createDailyLimiter } from '../_shared/dailyLimit.ts';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 const QUERY_MAX_LENGTH = 500;
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// Daily usage limit per user (server-side universal cap)
+const DAILY_LIMIT = 50;
+const MAX_TRACKED_USERS = 50_000;
+const dailyLimiter = createDailyLimiter({ maxPerDay: DAILY_LIMIT, maxTrackedUsers: MAX_TRACKED_USERS });
+
+/** @internal Reset daily limiter for testing. */
+export function resetDailyLimiter(): void { dailyLimiter.reset(); }
 
 // Rate limiter: 5 req/min per IP (stricter than Rakuten to manage AI costs)
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -58,12 +64,14 @@ export function checkRateLimit(ip: string): boolean {
   }
 
   // Hard cap: fail-closed when too many tracked IPs (DDoS / abuse scenario)
-  // Force cleanup on cap hit to avoid false 429 when expired entries occupy space
+  // Throttled: only force-clean once per CLEANUP_INTERVAL to avoid O(n) on every request
   if (rateLimitMap.size >= MAX_TRACKED_IPS && !rateLimitMap.has(ip)) {
-    for (const [key, val] of rateLimitMap) {
-      if (now >= val.resetAt) rateLimitMap.delete(key);
+    if (now - lastCleanupAt >= CLEANUP_INTERVAL_MS) {
+      for (const [key, val] of rateLimitMap) {
+        if (now >= val.resetAt) rateLimitMap.delete(key);
+      }
+      lastCleanupAt = now;
     }
-    lastCleanupAt = now;
     if (rateLimitMap.size >= MAX_TRACKED_IPS) {
       return false;
     }
@@ -127,7 +135,7 @@ const SYSTEM_PROMPT = `あなたは建設資材の価格調査の専門家です
 function jsonResponse(body: Record<string, unknown>, status: number, extraHeaders?: Record<string, string>) {
   return new Response(
     JSON.stringify(body),
-    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extraHeaders } }
+    { status, headers: { 'Content-Type': 'application/json', ...extraHeaders } }
   );
 }
 
@@ -145,18 +153,18 @@ if (import.meta.main) {
 }
 
 async function handleRequest(req: Request): Promise<Response> {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-
   if (req.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  // Rate limiting by client IP
+  // Auth: require authenticated user JWT (reject anon key)
+  const userId = extractUserId(req);
+  if (!userId) {
+    return jsonResponse({ error: 'Unauthorized: valid user authentication required' }, 401);
+  }
+
+  // Rate limiting by client IP (burst protection — does not consume daily quota)
   // Priority: cf-connecting-ip (Cloudflare, cannot be spoofed) > x-forwarded-for (first hop)
-  // Note: rakuten-search uses x-forwarded-for first; here we prefer cf-connecting-ip for security
   const clientIp = req.headers.get('cf-connecting-ip')
     ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? 'unknown';
@@ -170,6 +178,11 @@ async function handleRequest(req: Request): Promise<Response> {
       429,
       { 'Retry-After': '60' }
     );
+  }
+
+  // Daily usage limit per user (sustained usage cap, separate from per-minute IP limit)
+  if (!dailyLimiter.checkAndIncrement(userId)) {
+    return jsonResponse({ error: 'daily_limit_exceeded' }, 429);
   }
 
   // Parse request body (explicit error handling for malformed JSON)
@@ -291,9 +304,9 @@ async function handleRequest(req: Request): Promise<Response> {
       200
     );
   } catch (err) {
-    // Sanitize error log to avoid leaking sensitive data (e.g. API keys in URLs)
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Edge function error:', message);
+    // Log error type only — err.message may contain URLs with API keys
+    const tag = err instanceof Error ? err.name : 'UnknownError';
+    console.error('Edge function error:', tag);
     return jsonResponse({ error: 'Internal server error' }, 500);
   }
 }
