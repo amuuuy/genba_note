@@ -17,9 +17,9 @@
   ```
 - **影響**: App Store / Play Store 審査で確実にリジェクト
 - **対応**:
-  - [ ] 利用規約ページ作成・公開
-  - [ ] プライバシーポリシーページ作成・公開
-  - [ ] コード内 URL 差し替え & TODO 削除
+  - [x] 利用規約ページ作成・公開
+  - [x] プライバシーポリシーページ作成・公開
+  - [x] コード内 URL 差し替え & TODO 削除
 
 ### C-2. EAS Submit 設定が空
 - **対象**: `genba-note/eas.json` L29-39
@@ -48,9 +48,9 @@
 - **現状**: IP レート制限（5回/分）のみ。1日の総回数制限なし
 - **影響**: Free ユーザーの大量利用で Gemini API コストが膨張
 - **対応**（server-side 必須、client-side は UX 補助）:
-  - [ ] **[必須]** Edge Function 側にユーザー単位の日次制限を実装（H-4 の認証改善後）
-  - [ ] **[補助]** クライアント側に日次回数制限 UI を追加（Free: 3回/日、Pro: 無制限 など）
-  - [ ] `genba-note/src/subscription/freeTierLimitsService.ts` に `FREE_AI_SEARCH_DAILY_LIMIT` を追加
+  - [x] **[必須]** Edge Function 側にユーザー単位の日次制限を実装（H-4 の認証改善後）
+  - [x] **[補助]** クライアント側に日次回数制限 UI を追加（Free: 3回/日、Pro: 無制限 など）
+  - [x] `genba-note/src/subscription/freeTierLimitsService.ts` に `FREE_AI_SEARCH_DAILY_LIMIT` を追加
   - ⚠️ クライアント側制限のみでは改変・再ビルドで回避可能。server-side が本命
 
 ### H-2. 書類の累計制限（5件）が厳しすぎる
@@ -59,7 +59,7 @@
 - **影響**: ユーザーが価値を感じる前に壁 → 課金せずアンインストール
 - **対応案** (いずれか選択):
   - [ ] A. 保持数制限に変更（削除すれば枠が空く）
-  - [ ] B. 累計数を 10〜15 に引き上げ
+  - [x] B. 累計数を 10〜15 に引き上げ（FREE_DOCUMENT_LIMIT = 10 に変更済み）
   - [ ] C. 月間制限に変更（月3件、毎月リセット）
 
 ### H-3. 写真削除エラーの握りつぶし
@@ -67,23 +67,23 @@
 - **現状**: `.catch(() => {})` でエラーを完全にサイレント
 - **影響**: ストレージ容量逼迫時にゴミファイルが蓄積
 - **対応**:
-  - [ ] `catch` 内で `__DEV__` ガード付き `console.warn` を追加
+  - [x] `catch` 内で `__DEV__` ガード付き `console.warn` を追加
 
 ### H-4. Edge Function の認証がユーザー単位でない（anon key 依存）
 - **対象**: `genba-note/src/domain/materialResearch/geminiSearchService.ts` L47-49, `genba-note/src/domain/materialResearch/materialResearchService.ts` L41-43
 - **現状**: Edge Function 呼び出しに `EXPO_PUBLIC_SUPABASE_ANON_KEY` を Bearer token として使用。公開キーのためユーザー単位の認証・制限が不可能
 - **影響**: anon key が公開情報のため、第三者が直接 Edge Function を呼び出し可能。ユーザー単位の利用制限もできない
 - **対応**:
-  - [ ] Supabase Auth を導入しユーザーセッション JWT を取得
-  - [ ] Edge Function 呼び出しを anon key → ユーザー JWT に変更
-  - [ ] Function 側で `auth.uid` ベースの利用制限・監査を実装
+  - [x] Supabase Auth を導入しユーザーセッション JWT を取得
+  - [x] Edge Function 呼び出しを anon key → ユーザー JWT に変更
+  - [x] Function 側で `auth.uid` ベースの利用制限・監査を実装
 
 ### H-5. Rakuten レートリミッタの Map 無制限成長
 - **対象**: `supabase/functions/rakuten-search/index.ts` L30-47
 - **現状**: gemini 側には `MAX_TRACKED_IPS`（10,000件上限）+ TTL クリーンアップがあるが、rakuten 側にはない。`Map` が無制限に成長する
 - **影響**: 大量のユニーク IP アクセスで Edge Function のメモリ圧迫・不安定化
 - **対応**:
-  - [ ] gemini 側同等の `MAX_TRACKED_IPS` + TTL クリーンアップを導入
+  - [x] gemini 側同等の `MAX_TRACKED_IPS` + TTL クリーンアップを導入
 
 ---
 
@@ -95,26 +95,26 @@
   - `genba-note/app/customer/[id].tsx` L268 — `console.warn('Failed to delete photo metadata ...')` にガードなし
 - **現状**: 本番ビルドでもデバッグ/エラーログが出力される
 - **対応**:
-  - [ ] 各箇所に `if (__DEV__)` ガードを追加、または削除
+  - [x] 各箇所に `if (__DEV__)` ガードを追加、または削除
 
 ### M-2. placeholder 系 ProGateReason が本番コードに残存
 - **対象**: `genba-note/src/subscription/types.ts`
 - **現状**: `placeholder_always_false` / `placeholder_always_true` がプロダクション型定義に含まれる
 - **対応**:
-  - [ ] テスト専用であることを明確にコメント or テスト用型に分離
+  - [x] テスト専用であることを明確にコメント or テスト用型に分離
 
 ### M-3. テンプレートの Pro 差別化がない
 - **対象**: `genba-note/src/pdf/templates/templateRegistry.ts`
 - **現状**: 6テンプレート全て Free で使える。Pro の訴求力が「量の制限解除」のみ
 - **対応案**:
-  - [ ] MODERN / CLASSIC / CONSTRUCTION を Pro 限定にする
-  - [ ] FORMAL_STANDARD / ACCOUNTING / SIMPLE は Free のまま
+  - [x] MODERN / CLASSIC / CONSTRUCTION を Pro 限定にする（`templateOptions.ts` で `requiresPro: true` 設定済み、`resolveTemplateForUser` で Free fallback 実装済み）
+  - [x] FORMAL_STANDARD / ACCOUNTING / SIMPLE は Free のまま
 
 ### M-4. 顧客登録上限が少ない
 - **対象**: `genba-note/src/subscription/freeTierLimitsService.ts` — `FREE_CUSTOMER_LIMIT = 3`
 - **現状**: 建設業は複数の元請・施主と同時取引が普通。3件だとすぐ埋まる
 - **対応**:
-  - [ ] 3件 → 5件 に引き上げ検討
+  - [x] 3件 → 5件 に引き上げ（FREE_CUSTOMER_LIMIT = 5 に変更済み）
 
 ### M-5. 楽天 API の RAKUTEN_APP_ID 登録確認
 - **対象**: Supabase Edge Function シークレット
@@ -127,21 +127,21 @@
 - **対象**: `genba-note/src/domain/materialResearch/materialResearchService.ts`
 - **現状**: Pro/Free 問わず同条件で利用可能
 - **対応**:
-  - [ ] Free: 1日5回 / Pro: 無制限 など検討
+  - [ ] Free: 1日5回 / Pro: 無制限 など検討（定数 FREE_RAKUTEN_SEARCH_DAILY_LIMIT = 5 は定義済みだが、検索フローで未使用。server-side は共通上限のみ）
 
 ### M-7. Edge Function デプロイ設定が手動依存
 - **対象**: `supabase/functions/gemini-search/index.ts` L8-14, `supabase/functions/rakuten-search/index.ts` L8-12
 - **現状**: `verify_jwt=true` の有効化がコメント + 手動 `--verify-jwt` フラグ依存。IaC/CI で強制されていない
 - **影響**: 誤デプロイで JWT 検証なしの公開エンドポイント化するリスク
 - **対応**:
-  - [ ] デプロイ設定をリポジトリ管理（`supabase/config.toml` 等）
+  - [x] デプロイ設定をリポジトリ管理（`supabase/config.toml` 等）
   - [ ] CI で「JWT 検証有効」をチェックするゲートを追加
 
 ### M-8. rakuten-search のエラーログにサニタイズ不足
 - **対象**: `supabase/functions/rakuten-search/index.ts` L151-153
 - **現状**: 例外時に生の `error` オブジェクトをログ出力。URL クエリ等の機微情報が混入する恐れ
 - **対応**:
-  - [ ] gemini 関数同様、サニタイズ済みメッセージ/ステータスのみ出力に変更
+  - [x] gemini 関数同様、サニタイズ済みメッセージ/ステータスのみ出力に変更
 
 ### M-9. Gemini API の GEMINI_API_KEY 登録確認
 - **対象**: Supabase Edge Function シークレット（`supabase/functions/gemini-search/index.ts` が `Deno.env.get('GEMINI_API_KEY')` で参照）
@@ -156,15 +156,15 @@
 - **現状**: `x-forwarded-for` ヘッダからクライアント IP を取得しており、ヘッダ偽装でレート制限を回避可能
 - **影響**: 悪意のあるユーザーが任意の IP を詐称し、レート制限を無効化できる
 - **対応**:
-  - [ ] Supabase Edge Function のデプロイ環境で信頼できる IP ヘッダ（例: Deno Deploy の `cf-connecting-ip`）を優先使用
-  - [ ] H-4 完了後は `auth.uid` ベースの制限が主対策となるため、IP 制限は補助的位置づけに変更
+  - [x] Supabase Edge Function のデプロイ環境で信頼できる IP ヘッダ（例: Deno Deploy の `cf-connecting-ip`）を優先使用
+  - [x] H-4 完了後は `auth.uid` ベースの制限が主対策となるため、IP 制限は補助的位置づけに変更
 
 ### M-11. CORS ワイルドカード（補助的対策）
 - **対象**: `supabase/functions/rakuten-search/index.ts` L20, `supabase/functions/gemini-search/index.ts` L22
 - **現状**: `'Access-Control-Allow-Origin': '*'`
 - **影響**: ネイティブアプリでは CORS は防御境界にならないため、直接的なセキュリティリスクは低い。ただし Web クライアントからのアクセスは無制限
 - **対応**:
-  - [ ] H-4 の認証改善が主対策。CORS は補助的に削除または制限（ネイティブアプリは CORS 対象外）
+  - [x] H-4 の認証改善が主対策。CORS は補助的に削除または制限（ネイティブアプリは CORS 対象外）
 - **補足**: 旧 H-6 から降格。本文記載の通りリスクが低く、H-4 完了で実質解消されるため MEDIUM に分類
 
 ### M-12. Sentry（クラッシュレポート）未導入
@@ -172,8 +172,8 @@
 - **現状**: クラッシュレポートサービスが未導入。本番でのクラッシュ情報が取得できない
 - **影響**: ユーザーのクラッシュを検知・再現・修正できず、品質改善が遅れる
 - **対応**:
-  - [ ] `@sentry/react-native` をインストール
-  - [ ] `genba-note/app/_layout.tsx` に Sentry 初期化コードを追加
+  - [x] `@sentry/react-native` をインストール
+  - [x] `genba-note/app/_layout.tsx` に Sentry 初期化コードを追加
   - [ ] EAS Build に Sentry DSN を環境変数で設定
   - [ ] テストクラッシュでダッシュボード受信確認
 
