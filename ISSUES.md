@@ -34,9 +34,9 @@
 - **現状**: `EXPO_PUBLIC_REVENUECAT_PUBLIC_KEY=` が空
 - **影響**: 本番ビルドで課金が一切動かない
 - **対応**:
-  - [ ] RevenueCat プロジェクト作成
-  - [ ] Entitlement `pro` 作成 + Offering 設定
-  - [ ] Public Key を `.env` と EAS Secrets に設定
+  - [x] RevenueCat プロジェクト作成
+  - [~] Entitlement `pro` 作成 + Offering 設定（Offering設定済み、Entitlement `pro` 要確認）
+  - [ ] Public Key を `.env` と EAS Secrets に設定（⚠️ 現在 `REVENUECAT_PUBLIC_API_KEY` で登録済み、`EXPO_PUBLIC_REVENUECAT_PUBLIC_KEY` に名前修正が必要）
 - **完了条件**: EAS 本番環境変数設定済み + 実機本番ビルドで RevenueCat 購入/復元動作確認（シークレット値そのものは文書化しない）
 
 ---
@@ -71,8 +71,8 @@
 
 ### H-4. Edge Function の認証がユーザー単位でない（anon key 依存）
 - **対象**: `genba-note/src/domain/materialResearch/geminiSearchService.ts` L47-49, `genba-note/src/domain/materialResearch/materialResearchService.ts` L41-43
-- **現状**: Edge Function 呼び出しに `EXPO_PUBLIC_SUPABASE_ANON_KEY` を Bearer token として使用。公開キーのためユーザー単位の認証・制限が不可能
-- **影響**: anon key が公開情報のため、第三者が直接 Edge Function を呼び出し可能。ユーザー単位の利用制限もできない
+- **現状**: Edge Function 呼び出しに `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を Bearer token として使用。公開キーのためユーザー単位の認証・制限が不可能
+- **影響**: publishable key（旧 anon key）が公開情報のため、第三者が直接 Edge Function を呼び出し可能。ユーザー単位の利用制限もできない
 - **対応**:
   - [x] Supabase Auth を導入しユーザーセッション JWT を取得
   - [x] Edge Function 呼び出しを anon key → ユーザー JWT に変更
@@ -118,10 +118,10 @@
 
 ### M-5. 楽天 API の RAKUTEN_APP_ID 登録確認
 - **対象**: Supabase Edge Function シークレット
-- **現状**: 登録状況が不明。未登録なら資材検索が 500 エラー
+- **現状**: Supabase Secrets に登録済み ✅
 - **対応**:
-  - [ ] `supabase secrets list` で確認
-  - [ ] 未登録なら [Rakuten Developers](https://webservice.rakuten.co.jp/) でアプリ登録 → `supabase secrets set`
+  - [x] `supabase secrets list` で確認
+  - [x] `supabase secrets set` で登録済み（2026-03-05）
 
 ### M-6. 資材検索（楽天）にも Free 回数制限がない
 - **対象**: `genba-note/src/domain/materialResearch/materialResearchService.ts`
@@ -145,11 +145,11 @@
 
 ### M-9. Gemini API の GEMINI_API_KEY 登録確認
 - **対象**: Supabase Edge Function シークレット（`supabase/functions/gemini-search/index.ts` が `Deno.env.get('GEMINI_API_KEY')` で参照）
-- **現状**: 登録状況が不明。未登録なら AI 検索が 500 エラー
+- **現状**: Supabase Secrets に登録済み ✅
 - **対応**:
-  - [ ] `supabase secrets list` で `GEMINI_API_KEY` の存在を確認
-  - [ ] 未登録なら Google AI Studio でキー取得 → `supabase secrets set GEMINI_API_KEY=<key>`
-  - [ ] 本番環境で AI 検索の疎通テストを実施
+  - [x] `supabase secrets list` で `GEMINI_API_KEY` の存在を確認
+  - [x] `supabase secrets set` で登録済み（2026-03-05）
+  - [ ] 本番環境で AI 検索の疎通テストを実施（M-06/07 最終検証で実施）
 
 ### M-10. Edge Function レートリミッタの IP 偽装耐性
 - **対象**: `supabase/functions/rakuten-search/index.ts`, `supabase/functions/gemini-search/index.ts`
@@ -167,15 +167,15 @@
   - [x] H-4 の認証改善が主対策。CORS は補助的に削除または制限（ネイティブアプリは CORS 対象外）
 - **補足**: 旧 H-6 から降格。本文記載の通りリスクが低く、H-4 完了で実質解消されるため MEDIUM に分類
 
-### M-12. Sentry（クラッシュレポート）未導入
+### M-12. Sentry（クラッシュレポート）テストクラッシュ確認
 - **対象**: `genba-note/` 全体
-- **現状**: クラッシュレポートサービスが未導入。本番でのクラッシュ情報が取得できない
+- **現状**: SDK導入済み + EAS Secrets にDSN登録済み。テストクラッシュ確認は実機ビルド時
 - **影響**: ユーザーのクラッシュを検知・再現・修正できず、品質改善が遅れる
 - **対応**:
   - [x] `@sentry/react-native` をインストール
   - [x] `genba-note/app/_layout.tsx` に Sentry 初期化コードを追加
-  - [ ] EAS Build に Sentry DSN を環境変数で設定
-  - [ ] テストクラッシュでダッシュボード受信確認
+  - [x] EAS Build に Sentry DSN を環境変数で設定（`EXPO_PUBLIC_SENTRY_DSN` 登録済み）
+  - [ ] テストクラッシュでダッシュボード受信確認（M-06/07 実機テスト時）
 
 ### M-13. App Store / Play Store メタデータ未準備
 - **対象**: App Store Connect / Google Play Console
@@ -300,7 +300,7 @@
 | 2 | C-3 | RevenueCat 設定 + EAS Secrets 登録 | C-2（Apple App ID が必要） | M |
 | 3 | M-5 | Rakuten API RAKUTEN_APP_ID 登録確認 | — | S |
 | 4 | M-9 | Gemini API GEMINI_API_KEY 登録確認 | — | S |
-| 5 | M-12 | Sentry（クラッシュレポート）導入 | — | M |
+| 5 | M-12 | Sentry（クラッシュレポート）テストクラッシュ確認 | — | M |
 | 6 | — | TestFlight / 内部テスト配信 + 実機動作確認 | C-2, C-3 | M |
 
 **完了条件（auto_gate）**:
