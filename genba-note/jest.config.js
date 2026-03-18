@@ -15,6 +15,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^expo-file-system$': '<rootDir>/__mocks__/expo-file-system.ts',
     '^expo-file-system/legacy$': '<rootDir>/__mocks__/expo-file-system.ts',
+    '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',
   },
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts'],
   testEnvironment: 'node',
