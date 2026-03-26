@@ -5,6 +5,8 @@
  * Uses mocked @supabase/supabase-js.
  */
 
+import { createClient } from '@supabase/supabase-js';
+import * as SecureStore from 'expo-secure-store';
 import { initializeAuth, getAccessToken, resetForTest } from '@/domain/auth/supabaseAuthService';
 
 // --- Mocks ---
@@ -26,6 +28,7 @@ const savedKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (SecureStore as unknown as { __reset: () => void }).__reset();
   resetForTest();
   // Set env vars so getClient() creates the mocked client
   process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
@@ -166,5 +169,87 @@ describe('getAccessToken', () => {
 
     if (origUrl !== undefined) process.env.EXPO_PUBLIC_SUPABASE_URL = origUrl;
     if (origKey !== undefined) process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = origKey;
+  });
+});
+
+// --- SecureStoreAdapter regression ---
+
+describe('SecureStoreAdapter passed to createClient', () => {
+  it('passes a storage adapter with awaitable setItem/removeItem', async () => {
+    // Trigger client creation
+    mockGetSession.mockResolvedValueOnce({ data: { session: { access_token: 'tok' } }, error: null });
+    await initializeAuth();
+
+    const mockCreateClient = createClient as jest.Mock;
+    expect(mockCreateClient).toHaveBeenCalledTimes(1);
+
+    const options = mockCreateClient.mock.calls[0][2];
+    const storage = options.auth.storage;
+
+    // setItem should return a Promise (not undefined from fire-and-forget)
+    const setResult = storage.setItem('test-key', 'test-value');
+    expect(setResult).toBeInstanceOf(Promise);
+    await setResult;
+
+    // getItem should retrieve the stored value
+    const value = await storage.getItem('test-key');
+    expect(value).toBe('test-value');
+
+    // removeItem should return a Promise
+    const removeResult = storage.removeItem('test-key');
+    expect(removeResult).toBeInstanceOf(Promise);
+    await removeResult;
+
+    // After removal, getItem should return null
+    const removed = await storage.getItem('test-key');
+    expect(removed).toBeNull();
+  });
+
+  it('stores typical anonymous session within SecureStore 2KB limit', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: { access_token: 'tok' } }, error: null });
+    await initializeAuth();
+
+    const mockCreateClient = createClient as jest.Mock;
+    const storage = mockCreateClient.mock.calls[0][2].auth.storage;
+
+    // Simulate a realistic anonymous session payload as Supabase SDK would store it
+    const realisticSession = JSON.stringify({
+      access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + 'x'.repeat(400),
+      refresh_token: 'r'.repeat(128),
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: 'bearer',
+      user: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        app_metadata: { provider: 'anonymous', providers: ['anonymous'] },
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        is_anonymous: true,
+        role: 'authenticated',
+      },
+    });
+
+    // Verify session fits within expo-secure-store 2KB limit
+    expect(Buffer.byteLength(realisticSession, 'utf8')).toBeLessThan(2048);
+
+    // Verify round-trip storage works with realistic payload
+    await storage.setItem('sb-test-auth-token', realisticSession);
+    const retrieved = await storage.getItem('sb-test-auth-token');
+    expect(retrieved).toBe(realisticSession);
+  });
+
+  it('propagates SecureStore errors through the adapter', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: { access_token: 'tok' } }, error: null });
+    await initializeAuth();
+
+    const mockCreateClient = createClient as jest.Mock;
+    const storage = mockCreateClient.mock.calls[0][2].auth.storage;
+
+    // Spy on SecureStore to simulate failure
+    const spy = jest.spyOn(SecureStore, 'setItemAsync').mockRejectedValueOnce(new Error('SecureStore write failed'));
+
+    await expect(storage.setItem('key', 'val')).rejects.toThrow('SecureStore write failed');
+    spy.mockRestore();
   });
 });
