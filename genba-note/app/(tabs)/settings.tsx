@@ -17,6 +17,7 @@ import {
   Alert,
 } from 'react-native';
 import { Link } from 'expo-router';
+import { openTermsOfService, openPrivacyPolicy } from '@/utils/legalLinkHandlers';
 import { useSettingsEdit } from '@/hooks/useSettingsEdit';
 import { useReadOnlyMode } from '@/hooks/useReadOnlyMode';
 import { useProStatus } from '@/hooks/useProStatus';
@@ -209,6 +210,14 @@ export default function SettingsScreen() {
               <Text style={styles.linkText}>データ取扱説明</Text>
             </Pressable>
           </Link>
+
+          <Pressable style={styles.link} onPress={openTermsOfService} accessibilityRole="link">
+            <Text style={styles.linkText}>利用規約</Text>
+          </Pressable>
+
+          <Pressable style={styles.link} onPress={openPrivacyPolicy} accessibilityRole="link">
+            <Text style={styles.linkText}>プライバシーポリシー</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

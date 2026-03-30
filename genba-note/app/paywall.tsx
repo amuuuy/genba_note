@@ -31,6 +31,14 @@ import {
   FREE_AI_SEARCH_DAILY_LIMIT,
 } from '@/subscription/freeTierLimitsService';
 import { openTermsOfService, openPrivacyPolicy } from '@/utils/legalLinkHandlers';
+import { fetchOfferingsController } from '@/subscription/fetchOfferingsController';
+import { getOfferingsErrorMessage, getEmptyStateMessage } from './paywallMessages';
+import {
+  type PaywallErrorState,
+  initialErrorState,
+  setOfferingsError as setOfferingsErrorState,
+  dismissError as dismissErrorState,
+} from './paywallState';
 
 type OperationType = 'purchase' | 'restore' | null;
 type PlanType = 'monthly' | 'annual';
@@ -51,35 +59,36 @@ const PRO_FEATURES = [
 export default function PaywallScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingOperation, setLoadingOperation] = useState<OperationType>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<PaywallErrorState>(initialErrorState);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('annual');
   const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
   const [annualPackage, setAnnualPackage] = useState<PurchasesPackage | null>(null);
   const [isLoadingOfferings, setIsLoadingOfferings] = useState(true);
+
+  // Derived values from error state
+  const { error, offeringsError } = errorState;
+  const setError = useCallback((msg: string | null) => {
+    setErrorState(prev => msg ? { ...prev, error: msg } : dismissErrorState(prev));
+  }, []);
+  const setOfferingsError = useCallback((msg: string) => {
+    setErrorState(prev => setOfferingsErrorState(prev, msg));
+  }, []);
 
   // Fetch offerings from RevenueCat on mount
   useEffect(() => {
     let cancelled = false;
 
     async function fetchOfferings() {
-      try {
-        const offerings = await Purchases.getOfferings();
-        if (cancelled) return;
+      const result = await fetchOfferingsController();
+      if (cancelled) return;
 
-        const current = offerings.current;
-        if (current) {
-          setMonthlyPackage(current.monthly);
-          setAnnualPackage(current.annual);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('プラン情報の取得に失敗しました。ネットワーク接続を確認してください。');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingOfferings(false);
-        }
+      setMonthlyPackage(result.monthlyPackage);
+      setAnnualPackage(result.annualPackage);
+      const errorMessage = getOfferingsErrorMessage(result.errorKind);
+      if (errorMessage) {
+        setOfferingsError(errorMessage);
       }
+      setIsLoadingOfferings(false);
     }
 
     fetchOfferings();
@@ -296,18 +305,18 @@ export default function PaywallScreen() {
             </Pressable>
           )}
 
-          {/* No offerings available */}
+          {/* No offerings available — message depends on fetch result */}
           {!annualPackage && !monthlyPackage && (
             <View style={styles.noOfferings}>
               <Text style={styles.noOfferingsText}>
-                現在プラン情報を取得できません。{'\n'}ネットワーク接続を確認してください。
+                {getEmptyStateMessage(offeringsError)}
               </Text>
             </View>
           )}
         </View>
       )}
 
-      {/* Error display */}
+      {/* Error display (purchase/restore operation errors, dismissible) */}
       {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>

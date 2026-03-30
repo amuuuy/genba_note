@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "update:preview": "eas update --channel preview --environment staging --platform all --auto",
-    "update:production": "eas update --channel production --environment production --platform all --auto"
+    "update:production": "eas update --channel production --environment production --platform all --auto",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.3",
@@ -50,6 +51,8 @@
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~10.0.0",
     "jest": "^30.2.0",
     "jest-expo": "^54.0.16",
     "ts-jest": "^29.4.6",
