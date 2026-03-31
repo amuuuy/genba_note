@@ -15,6 +15,7 @@ import {
   setOfferingsError,
   setOperationError,
   dismissError,
+  clearOfferingsError,
 } from '../../app/paywallState';
 
 describe('paywallState transitions', () => {
@@ -68,6 +69,30 @@ describe('paywallState transitions', () => {
     it('offeringsError is null even after dismiss', () => {
       const state = dismissError(initialErrorState);
       expect(state.offeringsError).toBeNull();
+    });
+  });
+
+  describe('clearOfferingsError (retry preparation)', () => {
+    const networkMsg = 'プラン情報の取得に失敗しました。ネットワーク接続を確認してください。';
+
+    it('clears offeringsError back to null', () => {
+      const state = setOfferingsError(initialErrorState, networkMsg);
+      const cleared = clearOfferingsError(state);
+      expect(cleared.offeringsError).toBeNull();
+    });
+
+    it('preserves existing operation error when clearing offeringsError', () => {
+      let state = setOfferingsError(initialErrorState, networkMsg);
+      state = setOperationError(state, '購入処理中にエラーが発生しました。');
+      const cleared = clearOfferingsError(state);
+      expect(cleared.offeringsError).toBeNull();
+      expect(cleared.error).toBe('購入処理中にエラーが発生しました。');
+    });
+
+    it('is a no-op when offeringsError is already null', () => {
+      const cleared = clearOfferingsError(initialErrorState);
+      expect(cleared.offeringsError).toBeNull();
+      expect(cleared.error).toBeNull();
     });
   });
 

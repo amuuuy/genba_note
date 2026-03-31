@@ -38,6 +38,7 @@ import {
   initialErrorState,
   setOfferingsError as setOfferingsErrorState,
   dismissError as dismissErrorState,
+  clearOfferingsError as clearOfferingsErrorState,
 } from './paywallState';
 
 type OperationType = 'purchase' | 'restore' | null;
@@ -74,6 +75,20 @@ export default function PaywallScreen() {
     setErrorState(prev => setOfferingsErrorState(prev, msg));
   }, []);
 
+  const loadOfferings = useCallback(async () => {
+    setIsLoadingOfferings(true);
+    setErrorState(prev => clearOfferingsErrorState(prev));
+
+    const result = await fetchOfferingsController();
+    setMonthlyPackage(result.monthlyPackage);
+    setAnnualPackage(result.annualPackage);
+    const errorMessage = getOfferingsErrorMessage(result.errorKind);
+    if (errorMessage) {
+      setOfferingsError(errorMessage);
+    }
+    setIsLoadingOfferings(false);
+  }, []);
+
   // Fetch offerings from RevenueCat on mount
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +109,10 @@ export default function PaywallScreen() {
     fetchOfferings();
     return () => { cancelled = true; };
   }, []);
+
+  const handleRetryOfferings = useCallback(() => {
+    loadOfferings();
+  }, [loadOfferings]);
 
   const selectedPackage = selectedPlan === 'annual' ? annualPackage : monthlyPackage;
 
@@ -311,6 +330,15 @@ export default function PaywallScreen() {
               <Text style={styles.noOfferingsText}>
                 {getEmptyStateMessage(offeringsError)}
               </Text>
+              {offeringsError && (
+                <Pressable
+                  style={styles.retryButton}
+                  onPress={handleRetryOfferings}
+                  accessibilityLabel="再読み込み"
+                >
+                  <Text style={styles.retryButtonText}>再読み込み</Text>
+                </Pressable>
+              )}
             </View>
           )}
         </View>
@@ -553,6 +581,19 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  retryButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
   },
   errorContainer: {
     backgroundColor: '#FFEBEE',

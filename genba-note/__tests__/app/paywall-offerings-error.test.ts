@@ -49,4 +49,16 @@ describe('PaywallScreen wiring', () => {
   it('converts errorKind to message via getOfferingsErrorMessage', () => {
     expect(paywallSource).toContain('getOfferingsErrorMessage(result.errorKind)');
   });
+
+  it('has a retry handler for re-fetching offerings', () => {
+    expect(paywallSource).toContain('handleRetryOfferings');
+  });
+
+  it('renders a retry button with 再読み込み label', () => {
+    expect(paywallSource).toContain('再読み込み');
+  });
+
+  it('imports clearOfferingsError from paywallState', () => {
+    expect(paywallSource).toContain('clearOfferingsError');
+  });
 });

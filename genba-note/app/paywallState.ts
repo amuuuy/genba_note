@@ -38,3 +38,8 @@ export function setOperationError(
 export function dismissError(state: PaywallErrorState): PaywallErrorState {
   return { ...state, error: null };
 }
+
+/** Clear offerings error before retrying fetch */
+export function clearOfferingsError(state: PaywallErrorState): PaywallErrorState {
+  return { ...state, offeringsError: null };
+}
