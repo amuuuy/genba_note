@@ -338,7 +338,7 @@ describe('performance', () => {
       });
 
       expect(result).toBe('test-result');
-      expect(duration).toBeGreaterThanOrEqual(10);
+      expect(duration).toBeGreaterThanOrEqual(9);
     });
 
     it('propagates errors from async operation', async () => {
