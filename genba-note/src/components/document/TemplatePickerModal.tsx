@@ -3,7 +3,6 @@
  *
  * Modal for temporarily switching document template and seal size in preview screen.
  * Selection is immediate (no confirm button) and does not persist to settings.
- * Pro templates are shown with a PRO badge and disabled for free users.
  */
 
 import React from 'react';
@@ -26,8 +25,6 @@ export interface TemplatePickerModalProps {
   onClose: () => void;
   currentSealSize?: SealSize;
   onSealSizeSelect?: (sealSize: SealSize) => void;
-  /** Whether the user has Pro access (defaults to false) */
-  isPro?: boolean;
   testID?: string;
 }
 
@@ -38,10 +35,9 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
   onClose,
   currentSealSize,
   onSealSizeSelect,
-  isPro = false,
   testID,
 }) => {
-  const selectableOptions = getSelectableTemplateOptions(isPro);
+  const selectableOptions = getSelectableTemplateOptions();
 
   return (
     <Modal
@@ -63,10 +59,8 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
                   style={[
                     styles.optionRow,
                     isSelected && styles.optionRowSelected,
-                    option.disabled && styles.optionRowDisabled,
                   ]}
-                  onPress={() => !option.disabled && onSelect(option.value)}
-                  disabled={option.disabled}
+                  onPress={() => onSelect(option.value)}
                   testID={testID ? `${testID}-option-${option.value.toLowerCase()}` : undefined}
                 >
                   <View style={styles.radioOuter}>
@@ -74,22 +68,11 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
                   </View>
                   <View style={styles.optionContent}>
                     <View style={styles.labelRow}>
-                      <Text style={[
-                        styles.optionLabel,
-                        option.disabled && styles.textDisabled,
-                      ]}>
+                      <Text style={styles.optionLabel}>
                         {option.label}
                       </Text>
-                      {option.requiresPro && (
-                        <View style={styles.proBadge}>
-                          <Text style={styles.proBadgeText}>PRO</Text>
-                        </View>
-                      )}
                     </View>
-                    <Text style={[
-                      styles.optionDescription,
-                      option.disabled && styles.textDisabled,
-                    ]}>
+                    <Text style={styles.optionDescription}>
                       {option.description}
                     </Text>
                   </View>
@@ -192,9 +175,6 @@ const styles = StyleSheet.create({
     borderColor: '#007AFF',
     backgroundColor: '#F0F7FF',
   },
-  optionRowDisabled: {
-    opacity: 0.5,
-  },
   radioOuter: {
     width: 22,
     height: 22,
@@ -230,20 +210,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     lineHeight: 18,
-  },
-  textDisabled: {
-    color: '#999',
-  },
-  proBadge: {
-    backgroundColor: '#FF9500',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  proBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   sectionDivider: {
     height: 1,

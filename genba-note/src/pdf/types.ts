@@ -197,7 +197,3 @@ export interface PdfGenerationResult {
   fileUri?: string;
   error?: PdfGenerationError;
 }
-
-// === Pro Gate Types (re-exported from subscription layer) ===
-
-export type { ProGateReason, ProGateResult } from '@/subscription/types';

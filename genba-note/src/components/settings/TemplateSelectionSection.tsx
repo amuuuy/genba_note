@@ -36,24 +36,23 @@ function TemplateRadioGroup({
   disabled: boolean;
   testIDPrefix: string;
 }) {
-  const selectableOptions = getSelectableTemplateOptions(true);
+  const selectableOptions = getSelectableTemplateOptions();
 
   return (
     <>
       {selectableOptions.map((option) => {
         const isSelected = value === option.value;
-        const isOptionDisabled = disabled || option.disabled;
         return (
           <Pressable
             key={option.value}
             style={[
               styles.optionRow,
               isSelected && styles.optionRowSelected,
-              isOptionDisabled && styles.optionRowDisabled,
+              disabled && styles.optionRowDisabled,
             ]}
-            onPress={() => !isOptionDisabled && onChange(option.value)}
+            onPress={() => !disabled && onChange(option.value)}
             testID={`${testIDPrefix}-${option.value.toLowerCase()}`}
-            disabled={isOptionDisabled}
+            disabled={disabled}
           >
             <View style={styles.radioOuter}>
               {isSelected && <View style={styles.radioInner} />}
@@ -61,20 +60,15 @@ function TemplateRadioGroup({
             <View style={styles.optionContent}>
               <View style={styles.labelRow}>
                 <Text
-                  style={[styles.optionLabel, isOptionDisabled && styles.optionLabelDisabled]}
+                  style={[styles.optionLabel, disabled && styles.optionLabelDisabled]}
                 >
                   {option.label}
                 </Text>
-                {option.requiresPro && (
-                  <View style={styles.proBadge}>
-                    <Text style={styles.proBadgeText}>PRO</Text>
-                  </View>
-                )}
               </View>
               <Text
                 style={[
                   styles.optionDescription,
-                  isOptionDisabled && styles.optionDescriptionDisabled,
+                  disabled && styles.optionDescriptionDisabled,
                 ]}
               >
                 {option.description}
@@ -181,16 +175,5 @@ const styles = StyleSheet.create({
   },
   optionDescriptionDisabled: {
     color: '#AEAEB2',
-  },
-  proBadge: {
-    backgroundColor: '#FF9500',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  proBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

@@ -2,7 +2,6 @@
  * CSV File Service
  *
  * Async functions for file operations and expo-sharing integration.
- * Pro feature gating is enforced at this layer (same pattern as pdfGenerationService).
  */
 
 import { File, Paths } from 'expo-file-system';
@@ -13,7 +12,6 @@ import { successResult, errorResult, createCsvExportError } from './types';
 import { generateCsvFilename } from './csvFormatService';
 import { generateCsvFromDocuments } from './csvExportService';
 import { filterDocuments } from '@/storage/asyncStorageService';
-import { checkProStatus } from '@/subscription/proAccessService';
 
 /**
  * Write CSV content to temporary file
@@ -100,19 +98,15 @@ async function cleanupCsvFile(fileUri: string): Promise<void> {
 }
 
 /**
- * Export invoices to CSV and share
- *
- * IMPORTANT: This function enforces Pro status check at the service layer.
- * If not Pro, returns PRO_REQUIRED error immediately.
+ * Export invoices to CSV and share.
  *
  * Flow:
- * 1. Check Pro status
- * 2. Fetch invoices from storage
- * 3. Filter by period and status
- * 4. Generate CSV content
- * 5. Write to temporary file
- * 6. Share via expo-sharing
- * 7. Cleanup temporary file
+ * 1. Fetch invoices from storage
+ * 2. Filter by period and status
+ * 3. Generate CSV content
+ * 4. Write to temporary file
+ * 5. Share via expo-sharing
+ * 6. Cleanup temporary file
  *
  * @param options - Export options (periodType, referenceDate)
  * @returns CsvExportResult with rowCount on success
@@ -122,18 +116,7 @@ export async function exportInvoicesToCsv(
 ): Promise<CsvExportResult<{ rowCount: number }>> {
   const { periodType, referenceDate } = options;
 
-  // 1. Enforce Pro status check
-  const proResult = await checkProStatus();
-  if (!proResult.isPro) {
-    return errorResult(
-      createCsvExportError(
-        'PRO_REQUIRED',
-        'CSV export requires Pro subscription'
-      )
-    );
-  }
-
-  // 2. Fetch invoices from storage
+  // 1. Fetch invoices from storage
   const storageResult = await filterDocuments(
     { type: 'invoice', status: ['sent', 'paid'] },
     undefined
@@ -150,7 +133,7 @@ export async function exportInvoicesToCsv(
 
   const documents = storageResult.data ?? [];
 
-  // 3-4. Filter and generate CSV
+  // 2-3. Filter and generate CSV
   const { csvContent, rowCount } = generateCsvFromDocuments(
     documents,
     periodType,
@@ -167,7 +150,7 @@ export async function exportInvoicesToCsv(
     );
   }
 
-  // 5. Write to temporary file
+  // 4. Write to temporary file
   const filename = generateCsvFilename(referenceDate);
   const writeResult = await writeCsvFile(csvContent, filename);
 
@@ -177,7 +160,7 @@ export async function exportInvoicesToCsv(
 
   const fileUri = writeResult.data!;
 
-  // 6. Share and 7. Cleanup
+  // 5. Share and 6. Cleanup
   try {
     const shareResult = await shareCsvFile(fileUri);
 

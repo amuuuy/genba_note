@@ -1,14 +1,12 @@
 /**
  * templateOptions — post-M1 no-Pro-gate tests
  *
- * PIVOT_PLAN_v2.md §M1 で「Pro テンプレ全開放」となり、全テンプレが
- * 無料で選択可能になった。requiresPro は全 false、isPro 引数は
- * 互換目的で残っているが関数の結果には影響しない（no-op）。
+ * PIVOT_PLAN_v2.md §M1 で Pro tier が全撤去され、全テンプレが無料で選択可能。
+ * requiresPro / isProTemplate / isPro 引数は完全削除済み。
  */
 
 import {
   TEMPLATE_OPTIONS,
-  isProTemplate,
   resolveTemplateForUser,
   getSelectableTemplateOptions,
 } from '@/constants/templateOptions';
@@ -25,39 +23,20 @@ describe('TEMPLATE_OPTIONS', () => {
       expect(values).toContain(id);
     }
   });
-
-  it('every template is marked requiresPro=false (post-M1)', () => {
-    for (const option of TEMPLATE_OPTIONS) {
-      expect(option.requiresPro).toBe(false);
-    }
-  });
 });
 
-describe('isProTemplate (post-M1)', () => {
-  it('returns false for every template ID', () => {
+describe('resolveTemplateForUser', () => {
+  it('returns the input templateId regardless of document type', () => {
     for (const id of DOCUMENT_TEMPLATE_IDS) {
-      expect(isProTemplate(id)).toBe(false);
+      expect(resolveTemplateForUser('estimate', id)).toBe(id);
+      expect(resolveTemplateForUser('invoice', id)).toBe(id);
     }
   });
 });
 
-describe('resolveTemplateForUser (post-M1)', () => {
-  it('returns the input templateId regardless of isPro flag', () => {
-    for (const id of DOCUMENT_TEMPLATE_IDS) {
-      expect(resolveTemplateForUser('estimate', id, false)).toBe(id);
-      expect(resolveTemplateForUser('estimate', id, true)).toBe(id);
-      expect(resolveTemplateForUser('invoice', id, false)).toBe(id);
-      expect(resolveTemplateForUser('invoice', id, true)).toBe(id);
-    }
-  });
-});
-
-describe('getSelectableTemplateOptions (post-M1)', () => {
-  it('returns all 6 templates with disabled=false regardless of isPro flag', () => {
-    for (const flag of [true, false]) {
-      const options = getSelectableTemplateOptions(flag);
-      expect(options).toHaveLength(6);
-      expect(options.every((o) => o.disabled === false)).toBe(true);
-    }
+describe('getSelectableTemplateOptions', () => {
+  it('returns all 6 templates', () => {
+    const options = getSelectableTemplateOptions();
+    expect(options).toHaveLength(6);
   });
 });

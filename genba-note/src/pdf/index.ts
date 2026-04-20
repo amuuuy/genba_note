@@ -13,8 +13,6 @@ export type {
   PdfGenerationErrorCode,
   PdfGenerationError,
   PdfGenerationResult,
-  ProGateReason,
-  ProGateResult,
 } from './types';
 
 export { ESTIMATE_COLORS, INVOICE_COLORS, FORMAL_COLORS, getColorSchemeForType } from './types';
@@ -35,11 +33,5 @@ export {
 } from './pdfTemplateService';
 
 // Generation Service
-// NOTE: generatePdf and sharePdf are intentionally NOT exported to enforce Pro gating.
-// All PDF generation must go through generateAndSharePdf which enforces Pro status.
+// NOTE: generatePdf and sharePdf are intentionally NOT exported.
 export { generateAndSharePdf } from './pdfGenerationService';
-
-// Pro Access Service - now in subscription layer
-// NOTE: setProStatusOverride and resetProStatusOverride are NOT exported here.
-// They are only available for testing via direct import from @/subscription/proAccessService.
-export { checkProStatus } from '@/subscription/proAccessService';
