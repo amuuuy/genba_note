@@ -13,7 +13,6 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
@@ -21,7 +20,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDocumentFilter } from '../../src/hooks/useDocumentFilter';
 import { useDocumentList } from '../../src/hooks/useDocumentList';
 import { useReadOnlyMode } from '../../src/hooks/useReadOnlyMode';
-import { useProStatus } from '../../src/hooks/useProStatus';
 import {
   CreationHubHeader,
   CreateDocumentCardGroup,
@@ -29,8 +27,6 @@ import {
 } from '../../src/components/document';
 import { ConfirmDialog } from '../../src/components/common';
 import { KanbanBoard } from '../../src/components/kanban/KanbanBoard';
-import { canCreateDocument } from '../../src/subscription/freeTierLimitsService';
-import { getAllDocuments } from '../../src/storage/asyncStorageService';
 
 /**
  * Delete confirmation state
@@ -65,9 +61,6 @@ export default function DocumentListScreen() {
   // Read-only mode state
   const { isReadOnlyMode } = useReadOnlyMode();
 
-  // Pro status (isLoading used to avoid false-negative during initial check)
-  const { isPro, isLoading: isProLoading } = useProStatus();
-
   // Delete confirmation dialog state
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(
     null
@@ -96,41 +89,15 @@ export default function DocumentListScreen() {
     setDeleteConfirm(null);
   }, []);
 
-  // Check free tier document limit before creating (uses total active document count).
-  // Pro users and users with pending Pro check skip the UI count check entirely —
-  // the domain layer (enforceDocumentCreationLimit) is the authoritative guard.
-  const checkDocumentLimitAndNavigate = useCallback(
-    async (type: 'estimate' | 'invoice') => {
-      if (!isPro && !isProLoading) {
-        const docsResult = await getAllDocuments();
-        if (!docsResult.success) {
-          Alert.alert('エラー', 'データの読み込みに失敗しました。アプリを再起動してください。');
-          return;
-        }
-        const check = canCreateDocument(docsResult.data!.length, isPro);
-        if (!check.allowed) {
-          Alert.alert(
-            '書類作成の上限に達しました',
-            `無料プランでは${check.limit}件まで保持できます。\n不要な書類を削除するか、Proプランにアップグレードしてください。`,
-            [{ text: 'OK', style: 'cancel' }]
-          );
-          return;
-        }
-      }
-      router.push(`/document/new?type=${type}`);
-    },
-    [isPro, isProLoading]
-  );
-
   // Handle create estimate
   const handleCreateEstimate = useCallback(() => {
-    checkDocumentLimitAndNavigate('estimate');
-  }, [checkDocumentLimitAndNavigate]);
+    router.push('/document/new?type=estimate');
+  }, []);
 
   // Handle create invoice
   const handleCreateInvoice = useCallback(() => {
-    checkDocumentLimitAndNavigate('invoice');
-  }, [checkDocumentLimitAndNavigate]);
+    router.push('/document/new?type=invoice');
+  }, []);
 
   // Handle photo icon press - navigate to customer detail (photo management)
   const handlePhotoPress = useCallback((customerId: string) => {

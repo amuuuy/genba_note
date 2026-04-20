@@ -23,7 +23,6 @@ import { Ionicons } from '@expo/vector-icons';
 import type { Customer } from '../../src/types/customer';
 import { useCustomerList } from '../../src/hooks/useCustomerList';
 import { useReadOnlyMode } from '../../src/hooks/useReadOnlyMode';
-import { useProStatus } from '../../src/hooks/useProStatus';
 import {
   EmptyCustomerList,
   CustomerListItem,
@@ -32,7 +31,6 @@ import {
   SearchBar,
   ConfirmDialog,
 } from '../../src/components/common';
-import { canCreateCustomer } from '../../src/subscription/freeTierLimitsService';
 
 /**
  * Main customer list screen
@@ -52,28 +50,16 @@ export default function CustomersScreen() {
   // Read-only mode state
   const { isReadOnlyMode } = useReadOnlyMode();
 
-  // Pro status
-  const { isPro } = useProStatus();
-
   // Delete confirmation state
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   // Determine if list is filtered
   const isFiltered = Boolean(searchText);
 
-  // Handle create button press (with free tier limit check)
+  // Handle create button press
   const handleCreatePress = useCallback(() => {
-    const check = canCreateCustomer(customers.length, isPro);
-    if (!check.allowed) {
-      Alert.alert(
-        '顧客登録の上限に達しました',
-        `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [{ text: 'OK', style: 'cancel' }]
-      );
-      return;
-    }
     router.push('/customer/new' as Href);
-  }, [customers.length, isPro]);
+  }, []);
 
   // Handle item press (edit)
   const handleItemPress = useCallback((id: string) => {

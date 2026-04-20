@@ -24,7 +24,6 @@ import type { UnitPrice } from '../../src/types/unitPrice';
 import type { UnitPriceInput } from '../../src/domain/unitPrice';
 import { useUnitPriceList } from '../../src/hooks/useUnitPriceList';
 import { useReadOnlyMode } from '../../src/hooks/useReadOnlyMode';
-import { useProStatus } from '../../src/hooks/useProStatus';
 import {
   EmptyUnitPriceList,
   UnitPriceListItem,
@@ -37,7 +36,6 @@ import {
   ConfirmDialog,
   type FilterOption,
 } from '../../src/components/common';
-import { canCreateUnitPrice } from '../../src/subscription/freeTierLimitsService';
 
 /**
  * Main unit price list screen
@@ -46,7 +44,6 @@ export default function UnitPricesScreen() {
   // Unit price list state
   const {
     unitPrices,
-    totalCount,
     isLoading,
     error,
     searchText,
@@ -64,9 +61,6 @@ export default function UnitPricesScreen() {
   // Read-only mode state
   const { isReadOnlyMode } = useReadOnlyMode();
 
-  // Pro status
-  const { isPro } = useProStatus();
-
   // Editor modal state
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingUnitPrice, setEditingUnitPrice] = useState<UnitPrice | null>(null);
@@ -80,20 +74,11 @@ export default function UnitPricesScreen() {
   // Determine if list is filtered
   const isFiltered = Boolean(searchText || selectedCategory);
 
-  // Handle create button press (with free tier limit check)
+  // Handle create button press
   const handleCreatePress = useCallback(() => {
-    const check = canCreateUnitPrice(totalCount, isPro);
-    if (!check.allowed) {
-      Alert.alert(
-        '単価マスタの上限に達しました',
-        `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [{ text: 'OK', style: 'cancel' }]
-      );
-      return;
-    }
     setEditingUnitPrice(null);
     setEditorVisible(true);
-  }, [totalCount, isPro]);
+  }, []);
 
   // Handle item press (edit)
   const handleItemPress = useCallback((unitPrice: UnitPrice) => {
@@ -150,42 +135,21 @@ export default function UnitPricesScreen() {
     setEditingUnitPrice(null);
   }, []);
 
-  // Handle material research register (with free tier limit check)
+  // Handle material research register
   const handleResearchRegister = useCallback(async (input: UnitPriceInput) => {
     if (isReadOnlyMode) return;
-    const check = canCreateUnitPrice(totalCount, isPro);
-    if (!check.allowed) {
-      Alert.alert(
-        '単価マスタの上限に達しました',
-        `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [{ text: 'OK', style: 'cancel' }]
-      );
-      return;
-    }
     const success = await createItem(input);
     if (success) {
       Alert.alert('登録完了', `「${input.name}」を単価マスタに登録しました`);
     } else {
       Alert.alert('エラー', '登録に失敗しました');
     }
-  }, [isReadOnlyMode, createItem, totalCount, isPro]);
+  }, [isReadOnlyMode, createItem]);
 
-  // Handle bulk register from material research (with free tier limit check)
+  // Handle bulk register from material research
   const handleResearchBulkRegister = useCallback(async (inputs: UnitPriceInput[]) => {
     if (isReadOnlyMode || inputs.length === 0) return;
-    const check = canCreateUnitPrice(totalCount, isPro);
-    if (!check.allowed) {
-      Alert.alert(
-        '単価マスタの上限に達しました',
-        `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [{ text: 'OK', style: 'cancel' }]
-      );
-      return;
-    }
-    // Trim to remaining capacity
-    const remaining = check.limit != null ? check.limit - totalCount : Infinity;
-    const toRegister = inputs.slice(0, remaining);
-    const successCount = await createItems(toRegister);
+    const successCount = await createItems(inputs);
     if (successCount === inputs.length) {
       Alert.alert('登録完了', `${successCount}件を単価マスタに登録しました`);
     } else if (successCount > 0) {
@@ -193,7 +157,7 @@ export default function UnitPricesScreen() {
     } else {
       Alert.alert('エラー', '登録に失敗しました');
     }
-  }, [isReadOnlyMode, createItems, totalCount, isPro]);
+  }, [isReadOnlyMode, createItems]);
 
   // Build category filter options
   const categoryOptions: FilterOption<string>[] = [
