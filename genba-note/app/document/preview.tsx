@@ -1,8 +1,7 @@
 /**
  * Document Preview Screen
  *
- * Displays HTML preview of documents (FREE for all users).
- * PDF generation and sharing is PRO only.
+ * Displays HTML preview of documents and provides PDF share.
  *
  * Flow:
  * 1. Load document from storage OR parse from previewData parameter
@@ -11,7 +10,7 @@
  * 4. Create document with resolved issuer info
  * 5. Generate HTML template
  * 6. Display in WebView
- * 7. On PDF share: check Pro status → generate/share or redirect to paywall
+ * 7. On PDF share: generate and share the PDF
  *
  * Preview Mode:
  * - If `previewData` param is provided, preview unsaved document data
