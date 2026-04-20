@@ -305,7 +305,7 @@ describe('useDocumentEdit', () => {
     });
   });
 
-  describe('performDocumentCreate - isPro propagation', () => {
+  describe('performDocumentCreate', () => {
     // Minimal state for creating a new document
     function createTestState(overrides: Partial<DocumentEditState> = {}): DocumentEditState {
       return {
@@ -371,59 +371,16 @@ describe('useDocumentEdit', () => {
       jest.clearAllMocks();
     });
 
-    it('should pass isPro=false to createDocument (fail-closed default)', async () => {
-      mockedDomain.createDocument.mockResolvedValue({
-        success: true,
-        data: mockDocument,
-      });
-
-      await performDocumentCreate(createTestState(), null, false);
-
-      expect(mockedDomain.createDocument).toHaveBeenCalledWith(
-        expect.anything(),
-        { isPro: false }
-      );
-    });
-
-    it('should pass isPro=true to createDocument when Pro', async () => {
-      mockedDomain.createDocument.mockResolvedValue({
-        success: true,
-        data: mockDocument,
-      });
-
-      await performDocumentCreate(createTestState(), null, true);
-
-      expect(mockedDomain.createDocument).toHaveBeenCalledWith(
-        expect.anything(),
-        { isPro: true }
-      );
-    });
-
     it('should return document on success', async () => {
       mockedDomain.createDocument.mockResolvedValue({
         success: true,
         data: mockDocument,
       });
 
-      const result = await performDocumentCreate(createTestState(), null, true);
+      const result = await performDocumentCreate(createTestState(), null);
 
       expect(result.document).toBe(mockDocument);
       expect(result.errorMessage).toBeNull();
-    });
-
-    it('should surface FREE_TIER_LIMIT_EXCEEDED error from domain layer', async () => {
-      mockedDomain.createDocument.mockResolvedValue({
-        success: false,
-        error: {
-          code: 'FREE_TIER_LIMIT_EXCEEDED',
-          message: 'Free tier document limit reached (5/5)',
-        },
-      });
-
-      const result = await performDocumentCreate(createTestState(), null, false);
-
-      expect(result.document).toBeNull();
-      expect(result.errorMessage).toBe('Free tier document limit reached (5/5)');
     });
 
     it('should surface generic save error from domain layer', async () => {
@@ -435,7 +392,7 @@ describe('useDocumentEdit', () => {
         },
       });
 
-      const result = await performDocumentCreate(createTestState(), null, true);
+      const result = await performDocumentCreate(createTestState(), null);
 
       expect(result.document).toBeNull();
       expect(result.errorMessage).toBe('Storage full');
@@ -446,7 +403,7 @@ describe('useDocumentEdit', () => {
         success: false,
       });
 
-      const result = await performDocumentCreate(createTestState(), null, false);
+      const result = await performDocumentCreate(createTestState(), null);
 
       expect(result.document).toBeNull();
       expect(result.errorMessage).toBe('保存に失敗しました');
@@ -474,7 +431,7 @@ describe('useDocumentEdit', () => {
         },
       });
 
-      await performDocumentCreate(state, 'cust-1', false);
+      await performDocumentCreate(state, 'cust-1');
 
       expect(mockedDomain.createDocument).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -488,21 +445,8 @@ describe('useDocumentEdit', () => {
           dueDate: '2026-03-15',
           carriedForwardAmount: 5000,
           notes: '備考テスト',
-        }),
-        { isPro: false }
+        })
       );
-    });
-  });
-
-  describe('useDocumentEdit - isPro default parameter', () => {
-    it('should have isPro default to false in function signature', () => {
-      // Verify the hook function accepts 2 args (documentId, documentType) without isPro
-      // and that the implementation defaults isPro=false.
-      // This is a compile-time/signature guarantee tested via the extracted function.
-      // The hook signature: useDocumentEdit(documentId, documentType = 'estimate', isPro = false)
-      // Since we cannot use renderHook, we verify via performDocumentCreate
-      // which receives the same isPro value.
-      expect(typeof performDocumentCreate).toBe('function');
     });
   });
 });

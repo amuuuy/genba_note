@@ -41,7 +41,6 @@ import * as asyncStorageService from '@/storage/asyncStorageService';
 import * as secureStorageService from '@/storage/secureStorageService';
 import * as autoNumberingService from '@/domain/document/autoNumberingService';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
-import { FREE_DOCUMENT_LIMIT } from '@/subscription/freeTierLimitsService';
 import {
   createTestDocument,
   createTestInvoice,
@@ -59,8 +58,6 @@ describe('conversionService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedAsyncStorage.getReadOnlyMode.mockReturnValue(false);
-    // Default: no existing documents (allows creation for free users)
-    mockedAsyncStorage.getAllDocuments.mockResolvedValue({ success: true, data: [] });
   });
 
   describe('convertEstimateToInvoice', () => {
@@ -99,7 +96,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice('estimate-id-123', { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice('estimate-id-123', { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.id).not.toBe('estimate-id-123');
@@ -114,7 +111,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.documentNo).toBe('INV-001');
@@ -128,7 +125,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.type).toBe('invoice');
@@ -144,7 +141,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.issueDate).toBe(TODAY); // '2026-01-30'
@@ -160,7 +157,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.validUntil).toBeNull();
@@ -173,7 +170,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.dueDate).toBeNull();
@@ -189,7 +186,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.status).toBe('draft');
@@ -202,7 +199,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.paidAt).toBeNull();
@@ -218,7 +215,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.clientName).toBe('ABC Construction Co.');
@@ -234,7 +231,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.clientAddress).toBe('123 Main Street, Tokyo');
@@ -250,7 +247,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.subject).toBe('Exterior Painting Project');
@@ -266,7 +263,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.notes).toBe('Payment due within 30 days');
@@ -298,7 +295,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         const invoice = result.data!.invoice;
@@ -353,7 +350,7 @@ describe('conversionService', () => {
           },
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         // Invoice should have NEW issuer info from current settings
@@ -385,7 +382,7 @@ describe('conversionService', () => {
           },
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(mockedSecureStorage.saveIssuerSnapshot).toHaveBeenCalledWith(
@@ -412,7 +409,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice('estimate-id', { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice('estimate-id', { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.originalEstimate.id).toBe('estimate-id');
@@ -432,7 +429,7 @@ describe('conversionService', () => {
           data: originalEstimate,
         });
 
-        const result = await convertEstimateToInvoice('estimate-id', { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice('estimate-id', { today: TODAY });
 
         expect(result.success).toBe(true);
         // Original estimate should be unchanged
@@ -457,7 +454,7 @@ describe('conversionService', () => {
         });
 
         const beforeConversion = Date.now();
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
         const afterConversion = Date.now();
 
         expect(result.success).toBe(true);
@@ -477,7 +474,7 @@ describe('conversionService', () => {
           data: null,
         });
 
-        const result = await convertEstimateToInvoice('non-existent-id', { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice('non-existent-id', { today: TODAY });
 
         expect(result.success).toBe(false);
         expect(result.error?.code).toBe('DOCUMENT_NOT_FOUND');
@@ -490,7 +487,7 @@ describe('conversionService', () => {
           data: invoice,
         });
 
-        const result = await convertEstimateToInvoice('invoice-id', { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice('invoice-id', { today: TODAY });
 
         expect(result.success).toBe(false);
         expect(result.error?.code).toBe('VALIDATION_ERROR');
@@ -503,7 +500,7 @@ describe('conversionService', () => {
           error: { code: 'READ_ERROR', message: 'Storage failure' },
         });
 
-        const result = await convertEstimateToInvoice('some-id', { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice('some-id', { today: TODAY });
 
         expect(result.success).toBe(false);
         expect(result.error?.code).toBe('STORAGE_ERROR');
@@ -520,7 +517,7 @@ describe('conversionService', () => {
           error: { code: 'SETTINGS_READ_ERROR', message: 'Cannot read settings' },
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(false);
         expect(result.error?.code).toBe('NUMBERING_ERROR');
@@ -549,7 +546,7 @@ describe('conversionService', () => {
           error: { code: 'WRITE_ERROR', message: 'Storage full' },
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(false);
         expect(result.error?.code).toBe('STORAGE_ERROR');
@@ -583,7 +580,7 @@ describe('conversionService', () => {
         });
 
         // Conversion should still succeed
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice).toBeDefined();
@@ -628,7 +625,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.clientAddress).toBeNull();
@@ -647,7 +644,7 @@ describe('conversionService', () => {
           error: { code: 'READ_ERROR', message: 'No settings' },
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         // Should use default empty issuer snapshot
@@ -671,7 +668,7 @@ describe('conversionService', () => {
           data: estimate,
         });
 
-        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.lineItems).toHaveLength(50);
@@ -693,75 +690,12 @@ describe('conversionService', () => {
         });
 
         const customToday = '2026-06-15';
-        const result = await convertEstimateToInvoice(estimate.id, { today: customToday, isPro: true });
+        const result = await convertEstimateToInvoice(estimate.id, { today: customToday });
 
         expect(result.success).toBe(true);
         expect(result.data?.invoice.issueDate).toBe('2026-06-15');
       });
     });
 
-    // === Free Tier Limit Tests ===
-
-    describe('free tier limits', () => {
-      const estimate = createTestDocument({ id: 'est-for-limit', type: 'estimate' });
-
-      beforeEach(() => {
-        mockedAsyncStorage.getDocumentById.mockResolvedValue({ success: true, data: estimate });
-        mockedNumbering.generateDocumentNumber.mockResolvedValue({ success: true, data: 'INV-001' });
-        mockedAsyncStorage.getSettings.mockResolvedValue({ success: true, data: DEFAULT_APP_SETTINGS });
-        mockedSecureStorage.getSensitiveIssuerInfo.mockResolvedValue({ success: true, data: null });
-        mockedAsyncStorage.saveDocument.mockImplementation(async (doc) => ({ success: true, data: doc }));
-        mockedSecureStorage.saveIssuerSnapshot.mockResolvedValue({ success: true });
-      });
-
-      it('should reject when active document count reaches limit (isPro=false)', async () => {
-        mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-          success: true,
-          data: Array(FREE_DOCUMENT_LIMIT).fill(null).map(() => createTestDocument()),
-        });
-        const result = await convertEstimateToInvoice('est-for-limit', { today: TODAY, isPro: false });
-        expect(result.success).toBe(false);
-        expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-        expect(mockedAsyncStorage.getDocumentById).not.toHaveBeenCalled();
-      });
-
-      it('should reject when document list read fails for free user (fail-closed)', async () => {
-        mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-          success: false,
-          error: { code: 'READ_ERROR' as const, message: 'err' },
-        });
-        const result = await convertEstimateToInvoice('est-for-limit', { today: TODAY, isPro: false });
-        expect(result.success).toBe(false);
-        expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-      });
-
-      it('should allow when document list read fails for Pro user (fail-open)', async () => {
-        mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-          success: false,
-          error: { code: 'READ_ERROR' as const, message: 'err' },
-        });
-        const result = await convertEstimateToInvoice('est-for-limit', { today: TODAY, isPro: true });
-        expect(result.success).toBe(true);
-      });
-
-      it('should allow for Pro user regardless of count', async () => {
-        mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-          success: true,
-          data: Array(100).fill(null).map(() => createTestDocument()),
-        });
-        const result = await convertEstimateToInvoice('est-for-limit', { today: TODAY, isPro: true });
-        expect(result.success).toBe(true);
-      });
-
-      it('should treat undefined isPro as free-tier (fail-closed default)', async () => {
-        mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-          success: true,
-          data: Array(FREE_DOCUMENT_LIMIT).fill(null).map(() => createTestDocument()),
-        });
-        const result = await convertEstimateToInvoice('est-for-limit', { today: TODAY });
-        expect(result.success).toBe(false);
-        expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-      });
-    });
   });
 });

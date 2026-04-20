@@ -35,7 +35,6 @@ import * as asyncStorageService from '@/storage/asyncStorageService';
 import * as secureStorageService from '@/storage/secureStorageService';
 import * as autoNumberingService from '@/domain/document/autoNumberingService';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
-import { FREE_DOCUMENT_LIMIT } from '@/subscription/freeTierLimitsService';
 import {
   createTestDocument,
   createTestInvoice,
@@ -53,8 +52,6 @@ describe('documentService', () => {
     jest.clearAllMocks();
     // Reset read-only mode
     mockedAsyncStorage.getReadOnlyMode.mockReturnValue(false);
-    // Default: no existing documents (allows creation for free users)
-    mockedAsyncStorage.getAllDocuments.mockResolvedValue({ success: true, data: [] });
   });
 
   describe('createDocument', () => {
@@ -86,7 +83,7 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.success).toBe(true);
@@ -123,7 +120,7 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.success).toBe(true);
@@ -159,7 +156,7 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.data?.status).toBe('draft');
@@ -193,7 +190,7 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.data?.id).toBeDefined();
@@ -243,7 +240,7 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.data?.issuerSnapshot.companyName).toBe('Test Company');
@@ -258,7 +255,7 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.success).toBe(false);
@@ -274,7 +271,7 @@ describe('documentService', () => {
           dueDate: '2026-02-28', // Invalid: estimate cannot have dueDate
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.success).toBe(false);
@@ -291,7 +288,7 @@ describe('documentService', () => {
           validUntil: '2026-02-28', // Invalid: invoice cannot have validUntil
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.success).toBe(false);
@@ -324,86 +321,11 @@ describe('documentService', () => {
           issueDate: '2026-01-30',
           lineItems: [{ name: 'Item 1', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 }],
         },
-        { today: TODAY, isPro: true }
+        { today: TODAY }
       );
 
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('STORAGE_ERROR');
-    });
-  });
-
-  describe('createDocument - free tier limits', () => {
-    const validInput = {
-      type: 'estimate' as const,
-      clientName: 'Test Client',
-      issueDate: '2026-01-30',
-      lineItems: [{ name: 'Item', quantityMilli: 1000, unit: '式', unitPrice: 10000, taxRate: 10 as const }],
-    };
-
-    beforeEach(() => {
-      mockedNumbering.generateDocumentNumber.mockResolvedValue({ success: true, data: 'EST-001' });
-      mockedAsyncStorage.getSettings.mockResolvedValue({ success: true, data: DEFAULT_APP_SETTINGS });
-      mockedSecureStorage.getSensitiveIssuerInfo.mockResolvedValue({ success: true, data: null });
-      mockedAsyncStorage.saveDocument.mockImplementation(async (doc) => ({ success: true, data: doc }));
-      mockedSecureStorage.saveIssuerSnapshot.mockResolvedValue({ success: true });
-    });
-
-    it('should reject when active document count reaches limit (isPro=false)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: true,
-        data: Array(FREE_DOCUMENT_LIMIT).fill(null).map(() => createTestDocument()),
-      });
-      const result = await createDocument(validInput, { today: TODAY, isPro: false });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-      expect(mockedNumbering.generateDocumentNumber).not.toHaveBeenCalled();
-    });
-
-    it('should reject when document list read fails for free user (fail-closed)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: false,
-        error: { code: 'READ_ERROR' as const, message: 'storage error' },
-      });
-      const result = await createDocument(validInput, { today: TODAY, isPro: false });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-    });
-
-    it('should allow when document list read fails for Pro user (fail-open)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: false,
-        error: { code: 'READ_ERROR' as const, message: 'storage error' },
-      });
-      const result = await createDocument(validInput, { today: TODAY, isPro: true });
-      expect(result.success).toBe(true);
-    });
-
-    it('should allow when under limit (isPro=false)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: true,
-        data: Array(FREE_DOCUMENT_LIMIT - 1).fill(null).map(() => createTestDocument()),
-      });
-      const result = await createDocument(validInput, { today: TODAY, isPro: false });
-      expect(result.success).toBe(true);
-    });
-
-    it('should allow for Pro user regardless of count', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: true,
-        data: Array(100).fill(null).map(() => createTestDocument()),
-      });
-      const result = await createDocument(validInput, { today: TODAY, isPro: true });
-      expect(result.success).toBe(true);
-    });
-
-    it('should treat undefined isPro as free-tier (fail-closed default)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: true,
-        data: Array(FREE_DOCUMENT_LIMIT).fill(null).map(() => createTestDocument()),
-      });
-      const result = await createDocument(validInput, { today: TODAY });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
     });
   });
 
@@ -756,7 +678,7 @@ describe('documentService', () => {
         success: true,
       });
 
-      const result = await duplicateDocument('original-id', { today: TODAY, isPro: true });
+      const result = await duplicateDocument('original-id', { today: TODAY });
 
       expect(result.success).toBe(true);
       expect(result.data?.id).not.toBe('original-id');
@@ -793,7 +715,7 @@ describe('documentService', () => {
         success: true,
       });
 
-      const result = await duplicateDocument('original-id', { today: TODAY, isPro: true });
+      const result = await duplicateDocument('original-id', { today: TODAY });
 
       expect(result.success).toBe(true);
       expect(result.data?.status).toBe('draft');
@@ -829,7 +751,7 @@ describe('documentService', () => {
         success: true,
       });
 
-      const result = await duplicateDocument('original-id', { today: TODAY, isPro: true });
+      const result = await duplicateDocument('original-id', { today: TODAY });
 
       expect(result.data?.paidAt).toBeNull();
     });
@@ -840,63 +762,11 @@ describe('documentService', () => {
         data: null,
       });
 
-      const result = await duplicateDocument('non-existent', { today: TODAY, isPro: true });
+      const result = await duplicateDocument('non-existent', { today: TODAY });
 
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('DOCUMENT_NOT_FOUND');
     });
   });
 
-  describe('duplicateDocument - free tier limits', () => {
-    const originalDoc = createTestDocument({ id: 'original-id', documentNo: 'EST-001' });
-
-    beforeEach(() => {
-      mockedAsyncStorage.getDocumentById.mockResolvedValue({ success: true, data: originalDoc });
-      mockedNumbering.generateDocumentNumber.mockResolvedValue({ success: true, data: 'EST-002' });
-      mockedAsyncStorage.getSettings.mockResolvedValue({ success: true, data: DEFAULT_APP_SETTINGS });
-      mockedSecureStorage.getSensitiveIssuerInfo.mockResolvedValue({ success: true, data: null });
-      mockedAsyncStorage.saveDocument.mockImplementation(async (doc) => ({ success: true, data: doc }));
-      mockedSecureStorage.saveIssuerSnapshot.mockResolvedValue({ success: true });
-    });
-
-    it('should reject when active document count reaches limit', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: true,
-        data: Array(FREE_DOCUMENT_LIMIT).fill(null).map(() => createTestDocument()),
-      });
-      const result = await duplicateDocument('original-id', { today: TODAY, isPro: false });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-      expect(mockedAsyncStorage.getDocumentById).not.toHaveBeenCalled();
-    });
-
-    it('should reject when document list read fails for free user (fail-closed)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: false,
-        error: { code: 'READ_ERROR' as const, message: 'err' },
-      });
-      const result = await duplicateDocument('original-id', { today: TODAY, isPro: false });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-    });
-
-    it('should allow when document list read fails for Pro user (fail-open)', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: false,
-        error: { code: 'READ_ERROR' as const, message: 'err' },
-      });
-      const result = await duplicateDocument('original-id', { today: TODAY, isPro: true });
-      expect(result.success).toBe(true);
-    });
-
-    it('should treat undefined isPro as free-tier', async () => {
-      mockedAsyncStorage.getAllDocuments.mockResolvedValue({
-        success: true,
-        data: Array(FREE_DOCUMENT_LIMIT).fill(null).map(() => createTestDocument()),
-      });
-      const result = await duplicateDocument('original-id', { today: TODAY });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('FREE_TIER_LIMIT_EXCEEDED');
-    });
-  });
 });

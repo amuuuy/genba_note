@@ -360,8 +360,7 @@ export function validateFormValues(
  */
 export async function performDocumentCreate(
   state: DocumentEditState,
-  customerId: string | null,
-  isPro: boolean
+  customerId: string | null
 ): Promise<{ document: Document | null; errorMessage: string | null }> {
   const carriedForwardAmount = state.values.carriedForwardAmount
     ? parseInt(state.values.carriedForwardAmount, 10)
@@ -389,7 +388,7 @@ export async function performDocumentCreate(
     notes: state.values.notes || null,
   };
 
-  const result = await createDocument(input, { isPro });
+  const result = await createDocument(input);
   if (result.success && result.data) {
     return { document: result.data, errorMessage: null };
   }
@@ -433,12 +432,10 @@ export interface UseDocumentEditReturn {
  *
  * @param documentId - Document ID to load, or 'new' for new document
  * @param documentType - Document type for new documents
- * @param isPro - Whether the user has Pro access (passed to domain layer for limit checks)
  */
 export function useDocumentEdit(
   documentId: string | null,
-  documentType: DocumentType = 'estimate',
-  isPro: boolean = false
+  documentType: DocumentType = 'estimate'
 ): UseDocumentEditReturn {
   const [state, dispatch] = useReducer(documentEditReducer, initialState);
 
@@ -517,8 +514,7 @@ export function useDocumentEdit(
         // Create new document (delegates to extracted helper)
         const { document, errorMessage } = await performDocumentCreate(
           state,
-          state.customerId,
-          isPro
+          state.customerId
         );
         if (document) {
           dispatch({ type: 'SAVE_SUCCESS', document });
@@ -573,7 +569,7 @@ export function useDocumentEdit(
       });
       return null;
     }
-  }, [state.documentId, state.values, state.lineItems, state.status, state.customerId, isPro]);
+  }, [state.documentId, state.values, state.lineItems, state.status, state.customerId]);
 
   const changeStatus = useCallback(
     async (newStatus: DocumentStatus, paidAt?: string): Promise<boolean> => {

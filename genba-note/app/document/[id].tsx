@@ -71,7 +71,7 @@ export default function DocumentEditScreen() {
     changeStatus,
     shouldShowSentWarning,
     acknowledgeSentWarning,
-  } = useDocumentEdit(documentId, documentType, true);
+  } = useDocumentEdit(documentId, documentType);
 
   // Line item editor state
   const lineItemEditor = useLineItemEditor(state.lineItems);

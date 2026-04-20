@@ -80,7 +80,6 @@ export {
   changeDocumentStatus,
   deleteDocumentById,
   duplicateDocument,
-  enforceDocumentCreationLimit,
 } from './documentService';
 
 export type {
