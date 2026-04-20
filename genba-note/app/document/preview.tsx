@@ -251,10 +251,6 @@ export default function DocumentPreviewScreen() {
       );
 
       if (!result.success && result.error) {
-        if (result.error.code === 'PRO_REQUIRED') {
-          router.push('/paywall');
-          return;
-        }
         if (result.error.code === 'SHARE_CANCELLED') {
           return;
         }

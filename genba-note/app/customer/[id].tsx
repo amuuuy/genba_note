@@ -181,10 +181,7 @@ export default function CustomerEditScreen() {
       Alert.alert(
         '写真追加の上限に達しました',
         `無料プランでは1顧客あたり${check.limit}枚まで追加できます。\nProプランにアップグレードすると無制限に追加できます。`,
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }

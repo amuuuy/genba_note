@@ -199,12 +199,6 @@ export default function SettingsScreen() {
 
         {/* Links Section */}
         <View style={styles.linkContainer}>
-          <Link href="/paywall" asChild>
-            <Pressable style={styles.link}>
-              <Text style={styles.linkText}>Proプランを見る</Text>
-            </Pressable>
-          </Link>
-
           <Link href="/data-handling" asChild>
             <Pressable style={styles.link}>
               <Text style={styles.linkText}>データ取扱説明</Text>

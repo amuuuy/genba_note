@@ -112,10 +112,7 @@ export default function DocumentListScreen() {
           Alert.alert(
             '書類作成の上限に達しました',
             `無料プランでは${check.limit}件まで保持できます。\n不要な書類を削除するか、Proプランにアップグレードしてください。`,
-            [
-              { text: 'キャンセル', style: 'cancel' },
-              { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-            ]
+            [{ text: 'OK', style: 'cancel' }]
           );
           return;
         }

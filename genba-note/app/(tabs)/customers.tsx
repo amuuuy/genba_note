@@ -68,10 +68,7 @@ export default function CustomersScreen() {
       Alert.alert(
         '顧客登録の上限に達しました',
         `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }

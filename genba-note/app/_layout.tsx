@@ -120,13 +120,6 @@ function RootLayoutContent() {
           }}
         />
         <Stack.Screen
-          name="paywall"
-          options={{
-            title: 'Proプラン',
-            presentation: 'modal',
-          }}
-        />
-        <Stack.Screen
           name="data-handling"
           options={{
             title: 'データ取扱説明',

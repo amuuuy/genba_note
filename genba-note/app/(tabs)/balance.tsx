@@ -7,7 +7,6 @@
 
 import { useState, useCallback } from 'react';
 import { View, StyleSheet, Alert, ScrollView } from 'react-native';
-import { router } from 'expo-router';
 import {
   CreateFinanceCardGroup,
   FinanceEntryModal,
@@ -44,10 +43,7 @@ export default function BalanceScreen() {
       Alert.alert(
         '収支入力はProプラン限定です',
         '無料プランでは収支データの閲覧のみ可能です。\nProプランにアップグレードすると収支の入力ができます。',
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }
@@ -61,10 +57,7 @@ export default function BalanceScreen() {
       Alert.alert(
         '収支入力はProプラン限定です',
         '無料プランでは収支データの閲覧のみ可能です。\nProプランにアップグレードすると収支の入力ができます。',
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }

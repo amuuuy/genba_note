@@ -375,9 +375,7 @@ export default function DocumentEditScreen() {
 
       // 2. Handle PDF generation/share result
       if (!result.success && result.error) {
-        if (result.error.code === 'PRO_REQUIRED') {
-          router.push('/paywall');
-        } else if (result.error.code !== 'SHARE_CANCELLED') {
+        if (result.error.code !== 'SHARE_CANCELLED') {
           const message =
             result.error.code === 'VALIDATION_FAILED' && result.error.message
               ? result.error.message
@@ -484,10 +482,7 @@ export default function DocumentEditScreen() {
           Alert.alert(
             '単価マスタの上限に達しました',
             `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-            [
-              { text: 'キャンセル', style: 'cancel' },
-              { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-            ]
+            [{ text: 'OK', style: 'cancel' }]
           );
           return;
         }

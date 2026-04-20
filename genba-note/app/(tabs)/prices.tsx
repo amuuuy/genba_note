@@ -19,7 +19,6 @@ import {
   Alert,
   FlatList,
 } from 'react-native';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { UnitPrice } from '../../src/types/unitPrice';
 import type { UnitPriceInput } from '../../src/domain/unitPrice';
@@ -88,10 +87,7 @@ export default function UnitPricesScreen() {
       Alert.alert(
         '単価マスタの上限に達しました',
         `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }
@@ -162,10 +158,7 @@ export default function UnitPricesScreen() {
       Alert.alert(
         '単価マスタの上限に達しました',
         `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }
@@ -185,10 +178,7 @@ export default function UnitPricesScreen() {
       Alert.alert(
         '単価マスタの上限に達しました',
         `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          { text: 'Proプランを見る', onPress: () => router.push('/paywall') },
-        ]
+        [{ text: 'OK', style: 'cancel' }]
       );
       return;
     }
