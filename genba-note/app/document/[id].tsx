@@ -31,7 +31,6 @@ import { useReadOnlyMode } from '@/hooks/useReadOnlyMode';
 import { DocumentEditForm, SaveActionSheet, PublishConfirmModal } from '@/components/document/edit';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { WarningDialog } from '@/components/common';
-import { checkProStatus } from '@/subscription/proAccessService';
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { generateFilenameTitle } from '@/pdf/pdfTemplateService';
 import {
@@ -42,8 +41,7 @@ import { enrichDocumentWithTotals } from '@/domain/lineItem/calculationService';
 import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { changeDocumentStatus, sanitizeDocumentType } from '@/domain/document';
-import { createUnitPrice, lineItemToUnitPriceInput, listUnitPrices } from '@/domain/unitPrice';
-import { canCreateUnitPrice } from '@/subscription/freeTierLimitsService';
+import { createUnitPrice, lineItemToUnitPriceInput } from '@/domain/unitPrice';
 import type { LineItemInput } from '@/domain/lineItem/lineItemService';
 import { getSettings } from '@/storage/asyncStorageService';
 
@@ -63,10 +61,6 @@ export default function DocumentEditScreen() {
   const documentId = isNewDocument ? null : id ?? null;
   const documentType = sanitizeDocumentType(type);
 
-  // Pro status (must be declared before useDocumentEdit which uses it)
-  // Default to false (fail-closed): free-tier limits apply until Pro status is confirmed
-  const [isPro, setIsPro] = useState(false);
-
   // Document edit state
   const {
     state,
@@ -77,7 +71,7 @@ export default function DocumentEditScreen() {
     changeStatus,
     shouldShowSentWarning,
     acknowledgeSentWarning,
-  } = useDocumentEdit(documentId, documentType, isPro);
+  } = useDocumentEdit(documentId, documentType, true);
 
   // Line item editor state
   const lineItemEditor = useLineItemEditor(state.lineItems);
@@ -98,13 +92,6 @@ export default function DocumentEditScreen() {
     if (!savedDocumentForPdf) return '';
     return generateFilenameTitle(savedDocumentForPdf.documentNo, savedDocumentForPdf.type);
   }, [savedDocumentForPdf]);
-
-  // Check Pro status on mount (fail-closed: errors keep isPro=false)
-  useEffect(() => {
-    checkProStatus()
-      .then((result) => setIsPro(result.isPro))
-      .catch(() => setIsPro(false));
-  }, []);
 
   // Track if we've synced initial line items from document to editor
   const hasInitializedLineItems = useRef(false);
@@ -318,7 +305,7 @@ export default function DocumentEditScreen() {
     const validationResult = validateDocumentForPdf(currentDocument);
     setPdfValidation(validationResult);
     setShowPublishConfirm(true);
-  }, [isPro, state.documentNo, state.values, state.lineItems, state.issuerSnapshot]);
+  }, [state.documentNo, state.values, state.lineItems, state.issuerSnapshot]);
 
   // Handle PDF publish confirmation (Phase 1: save → show filename modal)
   const handlePublishConfirm = useCallback(async () => {
@@ -469,24 +456,6 @@ export default function DocumentEditScreen() {
       isRegisteringUnitPrice.current = true;
 
       try {
-        // Get current unit price count for free-tier check (fail-closed)
-        const listResult = await listUnitPrices();
-        if (!listResult.success) {
-          Alert.alert('エラー', '単価表の読み込みに失敗しました。');
-          return;
-        }
-        const currentCount = listResult.data?.length ?? 0;
-
-        const check = canCreateUnitPrice(currentCount, isPro);
-        if (!check.allowed) {
-          Alert.alert(
-            '単価マスタの上限に達しました',
-            `無料プランでは${check.limit}件まで登録できます。\nProプランにアップグレードすると無制限に登録できます。`,
-            [{ text: 'OK', style: 'cancel' }]
-          );
-          return;
-        }
-
         const unitPriceInput = lineItemToUnitPriceInput(input);
         const result = await createUnitPrice(unitPriceInput);
 
@@ -501,7 +470,7 @@ export default function DocumentEditScreen() {
         isRegisteringUnitPrice.current = false;
       }
     },
-    [isPro]
+    []
   );
 
   // Display error messages when they occur (handles async state updates)
@@ -660,7 +629,6 @@ export default function DocumentEditScreen() {
         isNewDocument={isNewDocument}
         currentStatus={state.status}
         isSaving={state.isSaving || isPublishing}
-        isPro={isPro}
         onPreview={handlePreview}
         onSaveDraft={handleSaveDraft}
         onPublishPdf={handlePublishPdf}

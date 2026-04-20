@@ -9,10 +9,11 @@
  * - (tabs)/index, balance, prices, customers        (M1-5)
  * - customer/[id]                                   (M1-6)
  * - (tabs)/settings                                 (M1-7)
+ * - document/[id]                                   (M1-8)
  *
  * 未カバー（後続コミットで追加予定）:
- * - document/[id], document/preview
- *   いずれも子 component へ isPro prop を流す構造で整理中
+ * - document/preview は useProStatus + resolveTemplateForUser を
+ *   依然経由しており、次コミットで整理する
  */
 
 import * as fs from 'fs';
@@ -27,6 +28,7 @@ const SCREENS = [
   '(tabs)/customers.tsx',
   '(tabs)/settings.tsx',
   'customer/[id].tsx',
+  'document/[id].tsx',
 ];
 
 describe('screens have no Pro-tier gates', () => {
