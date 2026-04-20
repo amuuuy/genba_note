@@ -26,6 +26,18 @@ const SCREENS_WITHOUT_PAYWALL_LITERAL = [
   'customer/[id].tsx',
 ];
 
+const PAYWALL_SOURCE_FILES = [
+  'paywall.tsx',
+  'paywallMessages.ts',
+  'paywallState.ts',
+];
+
+describe('No paywall source files', () => {
+  it.each(PAYWALL_SOURCE_FILES)('app/%s has been removed', (filename) => {
+    expect(fs.existsSync(path.join(REPO_APP_ROOT, filename))).toBe(false);
+  });
+});
+
 describe('No paywall navigation entry points', () => {
   it('app/_layout.tsx does not register a paywall route', () => {
     const source = fs.readFileSync(path.join(REPO_APP_ROOT, '_layout.tsx'), 'utf-8');
