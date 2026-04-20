@@ -8,9 +8,10 @@
  * 監視対象（M1 の進行に応じて追加される）:
  * - (tabs)/index, balance, prices, customers        (M1-5)
  * - customer/[id]                                   (M1-6)
+ * - (tabs)/settings                                 (M1-7)
  *
  * 未カバー（後続コミットで追加予定）:
- * - (tabs)/settings, document/[id], document/preview
+ * - document/[id], document/preview
  *   いずれも子 component へ isPro prop を流す構造で整理中
  */
 
@@ -24,6 +25,7 @@ const SCREENS = [
   '(tabs)/balance.tsx',
   '(tabs)/prices.tsx',
   '(tabs)/customers.tsx',
+  '(tabs)/settings.tsx',
   'customer/[id].tsx',
 ];
 

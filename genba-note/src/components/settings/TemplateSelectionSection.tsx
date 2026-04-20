@@ -3,7 +3,7 @@
  *
  * Form section for per-document-type PDF template selection (M21).
  * Two radio groups: estimate template (6 options) + invoice template (6 options).
- * Pro templates are shown with a PRO badge and disabled for free users.
+ * All templates are free post-M1; no Pro gating.
  */
 
 import React from 'react';
@@ -23,24 +23,20 @@ export interface TemplateSelectionSectionProps {
   onInvoiceChange: (value: DocumentTemplateId) => void;
   /** Whether selection is disabled (e.g. during save) */
   disabled?: boolean;
-  /** Whether the user has Pro access (defaults to false) */
-  isPro?: boolean;
 }
 
 function TemplateRadioGroup({
   value,
   onChange,
   disabled,
-  isPro,
   testIDPrefix,
 }: {
   value: DocumentTemplateId;
   onChange: (value: DocumentTemplateId) => void;
   disabled: boolean;
-  isPro: boolean;
   testIDPrefix: string;
 }) {
-  const selectableOptions = getSelectableTemplateOptions(isPro);
+  const selectableOptions = getSelectableTemplateOptions(true);
 
   return (
     <>
@@ -100,7 +96,6 @@ export const TemplateSelectionSection: React.FC<TemplateSelectionSectionProps> =
   onEstimateChange,
   onInvoiceChange,
   disabled = false,
-  isPro = false,
 }) => {
   return (
     <>
@@ -109,7 +104,6 @@ export const TemplateSelectionSection: React.FC<TemplateSelectionSectionProps> =
           value={estimateTemplateId}
           onChange={onEstimateChange}
           disabled={disabled}
-          isPro={isPro}
           testIDPrefix="estimate-template"
         />
       </FormSection>
@@ -118,7 +112,6 @@ export const TemplateSelectionSection: React.FC<TemplateSelectionSectionProps> =
           value={invoiceTemplateId}
           onChange={onInvoiceChange}
           disabled={disabled}
-          isPro={isPro}
           testIDPrefix="invoice-template"
         />
       </FormSection>
