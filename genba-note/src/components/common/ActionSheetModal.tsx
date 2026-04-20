@@ -2,7 +2,7 @@
  * ActionSheetModal Component
  *
  * A bottom sheet style modal for presenting multiple action options.
- * Follows iOS ActionSheet pattern with support for icons and Pro badges.
+ * Follows iOS ActionSheet pattern with icon support.
  */
 
 import React from 'react';
@@ -32,8 +32,6 @@ export interface ActionSheetOption {
   iconColor?: string;
   /** Whether the option is disabled */
   disabled?: boolean;
-  /** Show Pro badge */
-  isPro?: boolean;
 }
 
 export interface ActionSheetModalProps {
@@ -115,11 +113,6 @@ export const ActionSheetModal: React.FC<ActionSheetModalProps> = ({
                       >
                         {option.label}
                       </Text>
-                      {option.isPro && (
-                        <View style={styles.proBadge}>
-                          <Text style={styles.proBadgeText}>Pro</Text>
-                        </View>
-                      )}
                     </View>
                     {option.sublabel && (
                       <Text
@@ -232,18 +225,6 @@ const styles = StyleSheet.create({
   },
   sublabelDisabled: {
     color: '#C7C7CC',
-  },
-  proBadge: {
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  proBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#fff',
   },
   cancelButton: {
     backgroundColor: '#fff',

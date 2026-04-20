@@ -28,9 +28,6 @@ export type {
 } from './useDocumentList';
 export { enrichDocumentsWithTotals, createDeleteHandler } from './useDocumentList';
 
-export { useProStatus } from './useProStatus';
-export type { UseProStatusReturn } from './useProStatus';
-
 export { useUnitPricePicker, extractCategories } from './useUnitPricePicker';
 export type {
   UnitPricePickerState,
