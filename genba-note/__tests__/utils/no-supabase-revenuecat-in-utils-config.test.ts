@@ -55,6 +55,10 @@ describe('.env.example', () => {
   it('does not mention Pro features gating in APP_ENV comment', () => {
     expect(source).not.toMatch(/Pro機能|IAP|RevenueCat/);
   });
+
+  it('does not define EXPO_PUBLIC_APP_ENV (dead config after environment.ts deletion)', () => {
+    expect(source).not.toMatch(/EXPO_PUBLIC_APP_ENV/);
+  });
 });
 
 describe('eas.json', () => {
@@ -70,5 +74,9 @@ describe('eas.json', () => {
 
   it('does not define REVENUECAT_PUBLIC_KEY build env', () => {
     expect(source).not.toMatch(/REVENUECAT_PUBLIC_KEY/);
+  });
+
+  it('does not define EXPO_PUBLIC_APP_ENV (dead config after environment.ts deletion)', () => {
+    expect(source).not.toMatch(/EXPO_PUBLIC_APP_ENV/);
   });
 });
