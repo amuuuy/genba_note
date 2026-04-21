@@ -17,14 +17,10 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe('src/utils/environment.ts', () => {
-  const source = readRepoFile('src/utils/environment.ts');
-
-  it('does not mention Pro / IAP in comments', () => {
-    expect(source).not.toMatch(/Pro features|IAP|IAP verification/i);
-  });
-
-  it('does not reference Supabase or RevenueCat', () => {
-    expect(source).not.toMatch(/supabase|revenuecat/i);
+  // C10: environment.ts の isDevelopmentMode/isProductionMode は production 参照ゼロで
+  // かつ isProductionMode が Acceptance #3 の `isPro` パターンに誤検知するため削除済み。
+  it('has been removed from the source tree', () => {
+    expect(fs.existsSync(path.join(REPO_ROOT, 'src/utils/environment.ts'))).toBe(false);
   });
 });
 
