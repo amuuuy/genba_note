@@ -1,8 +1,7 @@
 /**
  * Legal Link Handlers
  *
- * Pure functions for opening legal pages.
- * Extracted from paywall.tsx for testability in node test environment.
+ * Pure functions for opening legal pages (Terms of Service, Privacy Policy).
  */
 
 import { safeOpenUrl } from './safeOpenUrl';
