@@ -48,19 +48,6 @@ export {
   getIssuerSnapshot,
   saveIssuerSnapshot,
   deleteIssuerSnapshot,
-  // Subscription cache
-  getSubscriptionCache,
-  saveSubscriptionCache,
-  clearSubscriptionCache,
-  // Individual subscription values
-  getEntitlementActive,
-  setEntitlementActive,
-  getEntitlementExpiration,
-  setEntitlementExpiration,
-  getLastVerifiedAt,
-  setLastVerifiedAt,
-  getLastVerifiedUptime,
-  setLastVerifiedUptime,
 } from './secureStorageService';
 
 // Migration runner
