@@ -2,9 +2,7 @@
  * Tests for PDF Generation Service
  *
  * These tests mock expo-print, expo-sharing, and expo-file-system to test the service logic.
- *
- * NOTE: generatePdf and sharePdf are internal functions (not exported) to enforce Pro gating.
- * All tests must go through generateAndSharePdf which enforces Pro status check.
+ * All tests exercise the public generateAndSharePdf entry point.
  */
 
 // Mock functions for File class (same pattern as csvFileService tests)

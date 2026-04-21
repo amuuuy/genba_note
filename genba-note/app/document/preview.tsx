@@ -28,7 +28,6 @@ import { enrichDocumentWithTotals } from '@/domain/lineItem/calculationService';
 import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
 // Import template service directly to avoid bundling expo-print/sharing dependencies in preview
 import { generateHtmlTemplate, generateFilenameTitle, deriveDisplayHtml, toggleOrientation } from '@/pdf/pdfTemplateService';
-// Import PDF generation service for Pro feature
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { getSettings } from '@/storage/asyncStorageService';
 import { resolveBackgroundImageDataUrl } from '@/utils/imageUtils';

@@ -19,15 +19,6 @@ import { getSettings } from '@/storage/asyncStorageService';
 import { resolveBackgroundImageDataUrl } from '@/utils/imageUtils';
 import { injectSinglePageEnforcement } from './singlePageService';
 
-/**
- * Generate PDF from HTML (internal function)
- *
- * SECURITY: This function is NOT exported to enforce Pro gating.
- * All PDF generation must go through generateAndSharePdf.
- *
- * @param html - HTML content to convert to PDF
- * @returns PdfGenerationResult with fileUri on success
- */
 async function generatePdf(html: string, orientation?: PreviewOrientation): Promise<PdfGenerationResult> {
   try {
     const printOptions: { html: string; base64: boolean; width?: number; height?: number } = {
@@ -59,15 +50,6 @@ async function generatePdf(html: string, orientation?: PreviewOrientation): Prom
   }
 }
 
-/**
- * Share PDF file (internal function)
- *
- * SECURITY: This function is NOT exported to enforce Pro gating.
- * All PDF sharing must go through generateAndSharePdf.
- *
- * @param fileUri - File URI of the PDF to share
- * @returns PdfGenerationResult
- */
 async function sharePdf(fileUri: string): Promise<PdfGenerationResult> {
   try {
     const isAvailable = await Sharing.isAvailableAsync();

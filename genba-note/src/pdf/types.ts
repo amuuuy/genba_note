@@ -1,7 +1,7 @@
 /**
  * PDF Types for ポチッと事務
  *
- * Types for PDF template generation, PDF generation service, and Pro feature gating.
+ * Types for PDF template generation and PDF generation service.
  * Follows SPEC 2.7 for PDF output specifications.
  *
  * Settings-related types are defined in @/types/settings and re-exported here
@@ -175,7 +175,6 @@ export type PdfGenerationErrorCode =
   | 'GENERATION_FAILED'
   | 'SHARE_CANCELLED'
   | 'SHARE_FAILED'
-  | 'PRO_REQUIRED'
   | 'DOCUMENT_NOT_FOUND'
   | 'TEMPLATE_ERROR'
   | 'VALIDATION_FAILED';

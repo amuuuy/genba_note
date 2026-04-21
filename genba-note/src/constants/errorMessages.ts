@@ -14,7 +14,6 @@ export const PDF_ERROR_MESSAGES: Record<PdfGenerationErrorCode, string> = {
   GENERATION_FAILED: 'PDFの生成に失敗しました。再度お試しください。',
   SHARE_CANCELLED: '共有がキャンセルされました。',
   SHARE_FAILED: 'PDFの共有に失敗しました。',
-  PRO_REQUIRED: 'Proプランが必要です。',
   DOCUMENT_NOT_FOUND: '書類が見つかりません。',
   TEMPLATE_ERROR: 'テンプレートエラーが発生しました。',
   VALIDATION_FAILED: '必須項目が入力されていません。',

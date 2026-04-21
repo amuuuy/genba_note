@@ -3,7 +3,6 @@
  *
  * Form section for per-document-type PDF template selection (M21).
  * Two radio groups: estimate template (6 options) + invoice template (6 options).
- * All templates are free post-M1; no Pro gating.
  */
 
 import React from 'react';

@@ -4,7 +4,7 @@
  * Action sheet for document save options:
  * - Preview (review without saving)
  * - Save as Draft
- * - Publish PDF (Pro feature)
+ * - Publish PDF
  */
 
 import React, { useMemo } from 'react';
