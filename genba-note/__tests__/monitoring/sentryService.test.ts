@@ -59,11 +59,11 @@ describe('sentryService', () => {
       );
     });
 
-    it('should set tracesSampleRate in init config', () => {
+    it('should configure crash-only (tracesSampleRate: 0, performance tracing disabled)', () => {
       initializeSentry(VALID_DSN);
 
       expect(mockInit).toHaveBeenCalledWith(
-        expect.objectContaining({ tracesSampleRate: expect.any(Number) })
+        expect.objectContaining({ tracesSampleRate: 0 })
       );
     });
 
