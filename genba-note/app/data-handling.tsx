@@ -9,8 +9,17 @@ export default function DataHandlingScreen() {
 
         <Text style={styles.sectionTitle}>データの保存先</Text>
         <Text style={styles.body}>
-          本アプリのデータは端末内のローカルストレージに保存されます。
-          外部サーバーへの送信機能はありません。
+          本アプリで作成した書類・顧客・写真などのデータは、
+          すべて端末内のローカルストレージに保存されます。
+          業務データが開発者のサーバーや外部サービスに送信されることはありません。
+        </Text>
+
+        <Text style={styles.sectionTitle}>クラッシュレポートについて</Text>
+        <Text style={styles.body}>
+          アプリが予期せず終了した場合に限り、
+          匿名化されたクラッシュレポート（端末情報・エラー内容）が
+          品質改善のため外部サービス（Sentry）に送信されます。
+          個人を特定できる情報や業務データは含まれません。
         </Text>
 
         <Text style={styles.sectionTitle}>バックアップについて</Text>
