@@ -14,10 +14,10 @@ export default function DataHandlingScreen() {
           業務データが開発者のサーバーや外部サービスに送信されることはありません。
         </Text>
 
-        <Text style={styles.sectionTitle}>クラッシュレポートについて</Text>
+        <Text style={styles.sectionTitle}>エラーレポートについて</Text>
         <Text style={styles.body}>
-          アプリが予期せず終了した場合に限り、
-          匿名化されたクラッシュレポート（端末情報・エラー内容）が
+          アプリで予期しないエラーが発生した場合に、
+          匿名化されたエラーレポート（端末情報・エラー内容・スタックトレース）が
           品質改善のため外部サービス（Sentry）に送信されます。
           個人を特定できる情報や業務データは含まれません。
         </Text>
@@ -30,8 +30,9 @@ export default function DataHandlingScreen() {
 
         <Text style={styles.sectionTitle}>機密情報の扱い</Text>
         <Text style={styles.body}>
-          銀行口座情報等の機密データは、
-          端末のセキュアストレージ（expo-secure-store）を使用して保護されます。
+          適格請求書発行事業者番号と銀行口座情報は、
+          端末のセキュアストレージ（expo-secure-store）を使用して暗号化保護されます。
+          その他の発行者情報（会社名・住所・電話番号等）は通常の端末内ストレージに保存されます。
         </Text>
 
         <Pressable style={styles.closeButton} onPress={() => router.back()}>

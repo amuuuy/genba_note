@@ -54,11 +54,25 @@
 - **対応方針**: M2 以降で v10 migration 追加（今日の v1.0.1 リリースは skip）
 - **理由**: 親友のみ使用で影響最小、今日のリリース目標優先、破壊リスクなし
 
+## iter 2 で追加検出された blocking 2 件（2026-04-24）
+
+### [B4] Sentry 送信スコープと公開文言の不整合
+- **場所**: `genba-note/app/_layout.tsx:107-124`（ErrorBoundary の `handleErrorBoundaryError` が `captureException` で Sentry 送信）
+- **問題**: ErrorBoundary は React render error を捕捉してフォールバック UI を表示する（＝アプリは終了しない）。しかし privacy / data-handling / store metadata は「クラッシュレポートのみ」と明記していた
+- **決定**: 実装は維持（エラー観測性を失わないため）、公開文言を「予期しないエラー／エラーレポート」に広げる方向で統一
+- **修正対象**: privacy.html 2.2 / 6 / 7、data-handling.tsx のセクション名＋本文、store-metadata-ja.md の説明・プライバシーラベル・Review Notes・Google Play データセーフティ
+
+### [B5] プライバシーポリシーの SecureStore 記述が実装と不整合
+- **場所**: `docs/privacy/index.html:84-85,124-125`
+- **問題**: 発行者情報（社名、住所、電話番号、メール等）を SecureStore に保存すると記載していたが、実装（`settingsPersistenceService.ts:118-129,147-158`、`types/settings.ts:95-109`）では AsyncStorage に保存されており、SecureStore に入るのは **適格請求書発行事業者番号（invoiceNumber）** と **銀行口座情報（bankAccount）** のみ
+- **修正対象**: privacy.html 2.1 をストレージ種別で (a)通常 / (b)セキュア / (c)アプリ専用ディレクトリ の3分割に書き直し、4. を同粒度の概要に更新。data-handling.tsx の「機密情報の扱い」セクションも同様に実装整合
+
 ## リリース手順（修正後）
 
-1. [B1] [B2] [B3] 修正
-2. Phase 2 codex-review (diff) で修正内容を検証
-3. Phase 3 cross-check で全体整合性確認
-4. すべて ok:true 後、commit
-5. PR `refactor/m1-cleanup` → `main`
-6. EAS build production iOS + submit v1.0.1
+1. [B1] [B2] [B3] [B4] [B5] 修正
+2. arch review iter 3 で修正内容を検証（blocker 解消）
+3. Phase 2 codex-review (diff) で残差確認
+4. Phase 3 cross-check で全体整合性確認
+5. すべて ok:true 後、commit
+6. PR `refactor/m1-cleanup` → `main`
+7. EAS build production iOS + submit v1.0.1
