@@ -3,7 +3,7 @@
  *
  * v1.0.1 でアプリを完全無料化したため、対象画面から Pro ガード
  * （useProStatus / freeTierLimitsService 呼び出し、isPro 分岐、
- * canCreate*/canAddPhoto/canSearch* gate helpers）を除去した。
+ * canCreate / canAddPhoto / canSearch 等の gate helpers）を除去した。
  * このテストはそれらが再導入されていないことを保証する。
  *
  * 対象画面:
