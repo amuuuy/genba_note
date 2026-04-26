@@ -54,6 +54,20 @@
 - **対応方針**: M2 以降で v10 migration 追加（今日の v1.0.1 リリースは skip）
 - **理由**: 親友のみ使用で影響最小、今日のリリース目標優先、破壊リスクなし
 
+## iter 4 で追加検出された blocking 2 件（2026-04-26）
+
+### [B8] SecureStore に書類別 issuer snapshot も保存される（公開記述漏れ）
+- **場所**: `docs/privacy/index.html:87-90`、`genba-note/app/data-handling.tsx`
+- **問題**: privacy 2.1 (b) と data-handling.tsx は SecureStore 保存対象を「現在の発行者設定値（invoiceNumber + bankAccount）」のみと書いていたが、実装では `secureStorageService.ts:169-245` が `issuer_snapshot_{documentId}` キーで書類別の機密スナップショットも保存している（`documentService.ts:131-167`、`types/document.ts:75-76,105-107`）
+- **対応方針**: privacy 2.1 (b) と data-handling.tsx に「書類ごとの機密スナップショット（書類削除と連動して削除）」を追記
+- **担当**: Claude 判断で修正可（実装事実のドキュメント整合）
+
+### [B9] OTA 廃止が内部ドキュメントに反映されていない
+- **場所**: `UNIMPLEMENTED.md:50,156,173-177,510`、`RODOAPPU.md:240-245,306-317`、`ISSUES.md:360`
+- **問題**: B7 で OTA を廃止したが、これらの内部計画ドキュメントには旧前提（OTA 導入予定 / 完了）が残存。repo 全体で Option A 一貫性が未達
+- **対応方針**: 各該当箇所に OBSOLETE マーカー + M1_V1_0_1_RELEASE_FIXES.md B7 への参照を追記。本格的な書き直しは M2 以降
+- **担当**: Claude 判断で修正可（履歴文書の obsolete 化）
+
 ## iter 3 で追加検出された blocking 2 件（2026-04-26）
 
 ### [B6] 画像ファイルの保存先記述が AsyncStorage と混在

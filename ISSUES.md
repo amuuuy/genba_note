@@ -357,7 +357,7 @@
 
 | # | 内容 | 依存 | 規模 |
 |---|------|------|------|
-| 1 | OTA アップデート基盤（expo-updates） | — | S |
+| ~~1~~ | ~~OTA アップデート基盤（expo-updates）~~ ⚠️ OBSOLETE: M1/C13 で廃止（M1_V1_0_1_RELEASE_FIXES.md B7） | — | — |
 | 2 | 本番ビルド（iOS / Android） | MS5, MS6 | M |
 | 3 | サンドボックス課金テスト | MS5 | M |
 | 4 | TestFlight / 内部テスト配信 + 実機フルフロー確認 | #2, #3 | M |

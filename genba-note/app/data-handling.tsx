@@ -41,7 +41,9 @@ export default function DataHandlingScreen() {
         <Text style={styles.body}>
           適格請求書発行事業者番号と銀行口座情報のみ、
           端末のセキュアストレージ（expo-secure-store: iOS Keychain / Android Keystore）を
-          使用して暗号化保護されます。これらは「保存場所の詳細」のセキュアストレージ項目に該当します。
+          使用して暗号化保護されます。具体的には、(1) 現在の発行者設定値と
+          (2) 各見積書・請求書を作成した時点のスナップショット の2種類が保持されます。
+          書類を削除すると、対応するスナップショットも自動的に削除されます。
         </Text>
 
         <Pressable style={styles.closeButton} onPress={() => router.back()}>
