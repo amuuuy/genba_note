@@ -94,14 +94,34 @@
 | B18 | PIVOT_PLAN_v2.md Progress + C-task 表 | 正本にもかかわらず「Yuma 最終承認待ち」のまま、C3-rest-1 以降を「未着手」と表示 → 現在状態（M1 実装完了 + Acceptance + Codex review 収束 + B1-B19 解消）に同期、C-task すべて完了に更新 | ✅ |
 | B19 | M1_V1_0_1_RELEASE_FIXES.md（本ファイル） | 末尾手順が「[B1]〜[B5] 修正 → review → commit → PR」の pending 形のまま → closure record に全面書き換え、各 B/A 項目に解消 commit/日付を追記 | ✅ |
 
-### iter 10（2026-04-26 検出 / 同日解消、commit 本コミット）
+### iter 10（2026-04-26 検出 / 同日解消、commit `ca9cedd`）
 
 | ID | 場所 | 内容 | 状態 |
 |----|------|------|------|
-| iter10-A | PIVOT_PLAN_v2.md C-task 詳細表 (L249-285) | `[⬜ C3-rest-*]` / `[⬜ C4]` / `[部分完了 → ...]` といった未完了マーカーが現役表記として残存 → 全項目を `[✅ ...]` + 解消 commit ハッシュに更新 | ✅ |
-| iter10-B | PIVOT_PLAN_v2.md §13 Open Questions (L1343+) | 「承認前の残タスク」見出しと OQ1〜OQ3 が現役 pending として読める → セクション名を「Resolved historical notes（v9 承認前の残タスク・解決済み）」に変更し、解決状況を冒頭で要約 | ✅ |
-| iter10-C | M1_V1_0_1_RELEASE_FIXES.md ヘッダの最終 commit | `cae1f8e + 16539c2 fixup` → `699623f` に更新（doc sync の最新コミット） | ✅ |
+| iter10-A | PIVOT_PLAN_v2.md C-task 詳細表 (L249-285) | `[⬜ C3-rest-*]` / `[⬜ C4]` / `[部分完了 → ...]` といった未完了マーカーが現役表記として残存 → 全項目を `[✅ ...]` + 解消 commit ハッシュに更新 | ✅ `ca9cedd` |
+| iter10-B | PIVOT_PLAN_v2.md §13 Open Questions (L1343+) | 「承認前の残タスク」見出しと OQ1〜OQ3 が現役 pending として読める → セクション名を「Resolved historical notes（v9 承認前の残タスク・解決済み）」に変更し、解決状況を冒頭で要約 | ✅ `ca9cedd` |
+| iter10-C | M1_V1_0_1_RELEASE_FIXES.md ヘッダの最終 commit | `cae1f8e + 16539c2 fixup` → `699623f` に更新（doc sync の最新コミット） | ✅ `ca9cedd` |
 | iter10-D (advisory) | HUMAN_TASKS_GUIDE.md 本文 | OBSOLETE バナー追加済みだが本文に「未着手」「ブロック中」の現役進捗ラベルが残存 → A3 で M2 にて archive 退避予定として closure record にも明記 | ✅ M2 送り |
+
+### iter 11（2026-04-26 検出 / 同日解消、commit `9d84949`）
+
+| ID | 場所 | 内容 | 状態 |
+|----|------|------|------|
+| iter11-A | M1_V1_0_1_RELEASE_FIXES.md header / サマリ / リリース手順 | header の commit hash と commit count、サマリの commit count、リリース手順の反復回数（手順#2 が「9反復」のまま）が不一致 → `ca9cedd` / `+40 commits` / `10+ 反復` に統一、header の field ラベルを「最後の doc-sync commit」に明示変更 | ✅ `9d84949` |
+| iter11-B | PIVOT_PLAN_v2.md Progress L36 | 「Phase 1 arch review 9 回反復で収束」のまま → 「10+ 反復で blocker 解消（B1〜B19 + iter10-A/B/C 全解消、A1/A2/A3 を M2 送り）」に更新 | ✅ `9d84949` |
+| iter11-C (advisory) | PIVOT_PLAN_v2.md §13 OQ1/OQ2/OQ3 | section rename は済むも各小節の本文が「推奨」「Yuma 承認が必要」の命令形のまま → 各 OQ 冒頭に「✅ 解決済み（2026-04-20）」見出し + 解決状況の一行注記。原文は引用形式で historical context として保持 | ✅ `9d84949` |
+
+### iter 12（2026-04-26 検出 / 同日解消、commit `54c04fd`）
+
+| ID | 場所 | 内容 | 状態 |
+|----|------|------|------|
+| iter12-A | M1_V1_0_1_RELEASE_FIXES.md header / サマリの commit count | iter 11 で更新した `+40 commits` が、ファイル自身がコミットされる度に stale 化する bootstrap 問題 → header に「主な doc-sync スナップショット履歴」セクション追加（699623f / ca9cedd / 9d84949 を列挙）、「commit 数および HEAD 値は本ファイルがコミットされる度に更新される」旨の注記 + `git log refactor/m1-cleanup` への誘導。サマリ行も「closure 直前の commit count は doc-sync スナップショット時点で +40 程度」に再構成 | ✅ `54c04fd` |
+
+### iter 13（2026-04-26 検出 / 同日解消、本コミット）
+
+| ID | 場所 | 内容 | 状態 |
+|----|------|------|------|
+| iter13-A | M1_V1_0_1_RELEASE_FIXES.md iter 10 見出し + iter 11/12 の個票欠如 | サマリでは iter11-A/B/C と iter12-A を解消済と主張していたが、詳細表に iter 11 / iter 12 の節が無く、iter 10 見出しも「commit 本コミット」のまま固定ハッシュを失っていた → iter 10 見出しを `ca9cedd` に確定、iter 11 / iter 12 / iter 13 の節を追加して各 blocker を 1:1 対応で記録 | ✅ 本コミット |
 
 ## M2 送り（残件）
 
