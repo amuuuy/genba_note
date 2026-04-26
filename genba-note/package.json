@@ -10,8 +10,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "update:preview": "eas update --channel preview --environment staging --platform all --auto",
-    "update:production": "eas update --channel production --environment production --platform all --auto",
     "lint": "expo lint"
   },
   "dependencies": {

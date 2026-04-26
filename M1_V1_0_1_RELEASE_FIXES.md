@@ -54,6 +54,32 @@
 - **対応方針**: M2 以降で v10 migration 追加（今日の v1.0.1 リリースは skip）
 - **理由**: 親友のみ使用で影響最小、今日のリリース目標優先、破壊リスクなし
 
+## iter 3 で追加検出された blocking 2 件（2026-04-26）
+
+### [B6] 画像ファイルの保存先記述が AsyncStorage と混在
+- **場所**: `docs/privacy/index.html:83-94, 133-136`、`genba-note/app/data-handling.tsx`
+- **問題**: privacy 2.1 (a) AsyncStorage に「印影画像」を含めていたが、実装では AsyncStorage に保存されるのは URI/メタデータのみで、画像ファイル本体は `Paths.document/{seal_images,background_images,...}` 配下（アプリ専用ディレクトリ）に保存される（`genba-note/src/utils/imageUtils.ts:91-99,124-131,316-325,464-473`）。同じ粒度のずれが「作業写真」にも発生
+- **対応方針**: AsyncStorage = 「設定/URI/写真メタデータ」、アプリ専用ディレクトリ = 「印影画像・背景画像・顧客写真・領収書写真の実ファイル」と粒度を揃える
+- **担当**: Claude 判断で修正可（実装事実のドキュメント整合）
+
+### [B7] Expo Updates (OTA) の通信が公開文言で未開示
+- **場所**: `genba-note/app.json:59-62`（`updates.enabled: true`）、ストア申告全般
+- **問題**: 「外部通信は Sentry のみ」と公開しているが、`expo-updates` 経由で `u.expo.dev/...` への OTA 確認通信が発生する
+- **決定（2026-04-26）: Option A — OTA を無効化**
+  - 理由:
+    1. 親友のみ運用で OTA の恩恵が小さい（24-48h の審査ロスは許容可）
+    2. プライバシー申告がシンプル（「Sentry のみ」を維持できる）
+    3. `update:preview` / `update:production` スクリプトは EAS environment 未設定で事実上動作していなかった
+    4. runtime コード（src/, app/）に `expo-updates` 参照ゼロ → 無効化しても挙動変化なし
+  - 実装変更:
+    - `app.json` の `updates` ブロック削除
+    - `runtimeVersion` は EAS Build で使用するため残す
+    - `eas.json` の `preview` / `production` 内 `channel` 削除（OTA 無効化で inert）
+    - `package.json` の `update:preview` / `update:production` スクリプト削除
+    - `expo-updates` パッケージ依存は残す（peer で管理、削除リスクあり）
+  - 文書側は変更なし（「Sentry のみ」が引き続き正確）
+- **担当**: Claude 判断で実装＆修正
+
 ## iter 2 で追加検出された blocking 2 件（2026-04-24）
 
 ### [B4] Sentry 送信スコープと公開文言の不整合
