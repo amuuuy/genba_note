@@ -1,5 +1,17 @@
 # GenBa Note リリースロードマップ
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 / Pro tier 時代のロードマップです。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、関連するセクション・タスクは旧前提として参考扱いとします:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat**（5.x、7.3、サンドボックス課金テスト等）
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+> - **expo-updates OTA**（7.1、8.2 — Option A 採択で無効化）
+>
+> v1.0.1 の現行アーキテクチャ・廃止経緯は [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) および [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) を参照してください。
+> 本ファイルは v1.0.0 当時の計画として履歴目的で保持しています。
+>
+> ---
+
 > 作成日: 2026-02-22
 > 基盤: ISSUES.md（MS1〜MS7）を含む全工程を網羅
 > 詳細な Issue 定義・完了条件は [ISSUES.md](ISSUES.md) を参照

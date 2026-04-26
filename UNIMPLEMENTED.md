@@ -1,5 +1,17 @@
 # Genba Note 未実装タスク一覧
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 / Pro tier 時代の計画書です。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、関連するセクション・タスク（明示的な OBSOLETE マーカー有無に関わらず）はすべて旧前提として参考扱いとします:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat**
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+> - **expo-updates OTA**（Option A 採択、`app.json` から削除）
+>
+> v1.0.1 の現行アーキテクチャ・廃止経緯・対応済タスクは [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) および [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) を参照してください。
+> 本ファイル内の課金フロー・外部サービス設定・プライバシーラベル等の記述は、v1.0.0 当時の計画として履歴目的で保持しています。
+>
+> ---
+
 > 作成日: 2026-03-05
 > 対象: MS1〜MS7 の残タスク（FEATURE_ROADMAP.md の将来機能は除外）
 > M24-25 / MS1〜MS3 / MS6 は実装完了済み — 完了タスクは [x] で記録し残タスクを管理
