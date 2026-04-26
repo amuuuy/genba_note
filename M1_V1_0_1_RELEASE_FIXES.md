@@ -1,19 +1,19 @@
 # M1 v1.0.1 リリース前 修正記録（クロージャ）
 
 > ステータス: **✅ クローズ済み（2026-04-26）**
-> 最終 commit: `699623f`（branch `refactor/m1-cleanup`、`main` から +36 commits）
+> 最後の doc-sync commit: `ca9cedd`（branch `refactor/m1-cleanup`、`main` から +40 commits）
 > Phase 1 codex-review (arch): blocking すべて解消 / advisory はすべて適用済または M2 送り
 >
-> 本ファイルは Phase 1 codex-review (arch) 10 反復の検出 blocker と対応の記録を保持する closure record です。
+> 本ファイルは Phase 1 codex-review (arch) **10+ 反復**の検出 blocker と対応の記録を保持する closure record です。
 > v1.0.1 の現行アーキテクチャ正本: [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md)（M1 完了状態に同期済）。
 
 ## サマリ
 
 - **対応期間**: 2026-04-21 〜 2026-04-26
-- **対象ブランチ**: `refactor/m1-cleanup`（`main` から +36 commits、最新 `699623f`）
-- **検出方法**: Phase 1 arch codex-review を 10 反復実行（max_iters 解除、`ok:true` 収束）
-- **解消した blocker**: B1〜B19（公開ドキュメント・アプリ内画面・実装・内部計画書・正本ドキュメントの整合化のすべて）
-- **M2 送り**: A1（旧 Pro SecureStore キー cleanup migration）/ A2（live URL 配信内容との一致確認 CI 整備）/ A3（内部計画書の本文書き直し or archive 退避）
+- **対象ブランチ**: `refactor/m1-cleanup`（`main` から +40 commits、最後の doc-sync `ca9cedd`）
+- **検出方法**: Phase 1 arch codex-review を 10+ 反復実行（max_iters 解除）
+- **解消した blocker**: B1〜B19 + iter10-A/B/C（公開ドキュメント・アプリ内画面・実装・内部計画書・正本ドキュメントの整合化のすべて）
+- **M2 送り**: A1（旧 Pro SecureStore キー cleanup migration）/ A2（live URL 配信内容との一致確認 CI 整備）/ A3（内部計画書の本文書き直し or archive 退避、iter10-D HUMAN_TASKS_GUIDE.md 本文を含む）
 - **テスト**: 108 suites / 2201 tests pass、tsc --noEmit clean、lint 0 errors
 
 ## 解消した blocker 一覧
@@ -114,8 +114,8 @@
 
 ## v1.0.1 リリース手順（次ステップ）
 
-1. ✅ refactor/m1-cleanup ブランチで M1 実装 + B1〜B19 修正完了
-2. ✅ Phase 1 arch codex-review 9 反復で blocker 解消
+1. ✅ refactor/m1-cleanup ブランチで M1 実装 + B1〜B19 + iter10-A/B/C 修正完了
+2. ✅ Phase 1 arch codex-review 10+ 反復で blocker 解消
 3. ⏳ PR `refactor/m1-cleanup` → `main` 作成 → マージ
 4. ⏳ Yuma が live `genba-note.app/privacy` `/terms` を repo `docs/` と実測照合（A2）
 5. ⏳ EAS build production iOS（`eas build --profile production --platform ios`）

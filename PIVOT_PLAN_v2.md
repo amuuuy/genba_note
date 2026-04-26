@@ -33,7 +33,7 @@
 - [x] 2026-04-21: M1 実装完了（C1〜C10、`refactor/m1-cleanup` ブランチ）+ Acceptance #1〜#5 全 pass + Codex review #1〜#3 ok:true で収束
 - [x] 2026-04-21: M1 補完（C11 Sentry crash-only、C12 v1.0.1 bump、C13 OTA 無効化、C14 watermark 削除 + 履歴ドキュメントの OBSOLETE バナー化）
 - [x] 2026-04-21: App Store Connect で IAP（`genbanote_pro_monthly_v1` + `genbanote_pro_annual`）を Remove from Sale 実施
-- [x] 2026-04-21〜04-26: ストアメタ・公開ドキュメント (privacy/terms) 整合修正、Phase 1 arch review 9 回反復で収束（B1〜B19 全解消、A1/A2/A3 を M2 送りとして closure record に記録）
+- [x] 2026-04-21〜04-26: ストアメタ・公開ドキュメント (privacy/terms) 整合修正、Phase 1 arch review 10+ 反復で blocker 解消（B1〜B19 + iter10-A/B/C 全解消、A1/A2/A3 を M2 送りとして closure record に記録）
 - [ ] PR `refactor/m1-cleanup` → `main` 作成 → マージ → EAS Build production iOS → submit v1.0.1
 - [ ] M2 残タスク: 旧 Pro SecureStore キー cleanup migration（v10）、内部計画ドキュメントのセクション単位での全面書き直し、live URL `genba-note.app/privacy` `/terms` の repo 配信内容との一致確認 CI 化
 
@@ -1350,11 +1350,14 @@ Codex指摘: App Review Guidelines 2.3 / 2.3.12 は各バージョンで metadat
 > - **OQ2**: feature branch 名称（`refactor/m1-cleanup`） → 採用済、本ブランチで M1 完了
 > - **OQ3**: M1 着手タイミング → 2026-04-20 Yuma 最終承認 → M1 着手 → 2026-04-21 完了
 
-### OQ1: stash した paywall 変更の扱い
+### OQ1: stash した paywall 変更の扱い ✅ 解決済み（2026-04-20）
 
-**現状**: main の未コミット変更（paywall 系）を `git stash push -u` で退避済み（Supabase障害対応時）。
+> **本小節は履歴。現役 pending タスクではありません。** Yuma が stash 内容を確認して破棄判断、M1 着手後は paywall 自体が削除されたため stash 内容は完全に obsolete。
+> 以下は当時の検討メモを引用として保持しています。
 
-**推奨**: 破棄（M1 で paywall 消えるため）。ただし**破壊的操作なので確認ステップ必須**（AGENTS.md / CLAUDE.md の破壊的操作ルール遵守）。
+> **現状**: main の未コミット変更（paywall 系）を `git stash push -u` で退避済み（Supabase障害対応時）。
+
+> **推奨**: 破棄（M1 で paywall 消えるため）。ただし**破壊的操作なので確認ステップ必須**（AGENTS.md / CLAUDE.md の破壊的操作ルール遵守）。
 
 **手順**:
 ```bash
@@ -1379,11 +1382,14 @@ git stash branch backup/paywall-wip-2026-04-19 stash@{0}
 
 ---
 
-### OQ2: `fix/material-research-env-vars` ブランチの扱い
+### OQ2: `fix/material-research-env-vars` ブランチの扱い ✅ 解決済み（2026-04-20）
 
-**現状**: Supabase障害対応時に作った preflight env script のブランチ。M1 で preflight 自体を削除するため不要。
+> **本小節は履歴。現役 pending タスクではありません。** OQ2 自体は preflight script 関連ブランチの整理で、M1 で preflight ごと削除。OQ2 とは別に M1 用の `refactor/m1-cleanup` ブランチを採用し、本 closure record の対象。
+> 以下は当時の検討メモを引用として保持しています。
 
-**推奨**: 破棄。ただし**破壊的操作なので確認ステップ必須**。
+> **現状**: Supabase障害対応時に作った preflight env script のブランチ。M1 で preflight 自体を削除するため不要。
+
+> **推奨**: 破棄。ただし**破壊的操作なので確認ステップ必須**。
 
 **手順**:
 ```bash
@@ -1409,9 +1415,12 @@ git branch -D fix/material-research-env-vars
 
 ---
 
-### OQ3: M1 の着手タイミング
+### OQ3: M1 の着手タイミング ✅ 解決済み（2026-04-20）
 
-本 ExecPlan (v9) の **Codex review で ok:true になり**、かつ **Yuma が最終承認** したら着手。即日〜翌日を想定。
+> **本小節は履歴。現役 pending タスクではありません。** Codex review #9 で ok:true 到達後、2026-04-20 に Yuma が最終承認 → 同日 M1 着手 → 2026-04-21 実装完了。
+> 以下は当時の判断基準を引用として保持しています。
+
+> 本 ExecPlan (v9) の **Codex review で ok:true になり**、かつ **Yuma が最終承認** したら着手。即日〜翌日を想定。
 
 ---
 
