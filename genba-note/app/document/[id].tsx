@@ -241,7 +241,6 @@ export default function DocumentEditScreen() {
     await handleSave();
   }, [handleSave]);
 
-  // Handle PDF publish (free users get watermark, Pro users get clean PDF)
   const handlePublishPdf = useCallback(async () => {
     setShowActionSheet(false);
 

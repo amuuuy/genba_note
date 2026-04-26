@@ -1,5 +1,13 @@
 # ポチッと事務 M1 着手再開 引き継ぎプロンプト
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは M1 着手再開時の handoff プロンプトです。**役目終了済み**。
+> M1 実装は完了し、`refactor/m1-cleanup` ブランチで全 Acceptance pass + Codex review 通過済み。本 handoff の指示する「M1 コミット1から再開」「IAP Remove from Sale / Supabase 停止 / RevenueCat 無効化 pending」等は **すべて完了** しています。
+> このプロンプトを **新セッションで再利用しないでください**。
+> 現行 handoff として参照する場合は、[`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) と [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) のみを正本としてください。
+> 本ファイルは M1 着手時点の手順として履歴目的で保持しています。
+>
+> ---
+
 **作成日**: 2026-04-20
 **引き継ぎ元**: v9 plan 最終承認済み・M1 土台（OQ2処理 + feature branch + 棚卸し）完了時点
 

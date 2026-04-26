@@ -1,5 +1,12 @@
 # GenBa Note 新機能実装計画（Milestone 16〜23）
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 時代の Milestone 16〜23 実装計画です。
+> v1.0.1 で M1 Pivot により Pro/RevenueCat/Supabase/materialResearch（AI資材検索/楽天/Gemini）/OTA を全廃止したため、関連する記述はすべて旧前提として参考扱いとします。
+> v1.0.1 以降の現行アーキテクチャは [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本としてください。
+> 本ファイルは履歴目的で保持しています。
+>
+> ---
+
 ## Context
 
 GenBa Noteは建設業向けの書類管理アプリ（Expo SDK 54 + TypeScript + React Native 0.81）。

@@ -1,5 +1,12 @@
 # AI資材価格リサーチ機能 - Milestone別 変更一覧
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 時代の AI資材価格リサーチ機能（materialResearch ドメイン）の実装変更履歴です。
+> v1.0.1 で M1 Pivot により AI資材検索 / 楽天検索 / Google Gemini API は **全廃止** しました（materialResearch ドメイン削除、Supabase Edge Functions 削除、依存パッケージ削除）。
+> v1.0.1 以降の現行アーキテクチャは [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本としてください。
+> 本ファイルは履歴目的で保持しています。
+>
+> ---
+
 ---
 
 ## Milestone 1: 型定義 + 設定層

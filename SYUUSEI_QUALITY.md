@@ -1,5 +1,12 @@
 # GenBa Note コード品質修正計画（Milestone 24〜25）
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 時代の Milestone 24〜25 品質修正計画です。
+> Milestone 25 の paywall.tsx リリース準備項目は v1.0.1 で paywall 自体を削除したため OBSOLETE です。
+> v1.0.1 以降の現行アーキテクチャは [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本としてください。
+> 本ファイルは履歴目的で保持しています。
+>
+> ---
+
 ## Context
 
 GenBa Noteは建設業向けの書類管理アプリ（Expo SDK 54 + TypeScript + React Native 0.81）。

@@ -1,5 +1,13 @@
 # ポチッと事務 v2 方針転換 引き継ぎプロンプト
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは PIVOT_PLAN_v2.md v9 着手時の handoff プロンプトです。**役目終了済み**。
+> M1 実装は完了し、`refactor/m1-cleanup` ブランチで全 Acceptance pass + Codex review 通過済み。本 handoff の指示する作業（Supabase 停止 / RevenueCat 無効化 / IAP Remove from Sale 等）は実施済または不要です。
+> このプロンプトを **新セッションで再利用しないでください**。
+> 現行 handoff として参照する場合は、[`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) と [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) のみを正本としてください。
+> 本ファイルは v9 着手時点の手順として履歴目的で保持しています。
+>
+> ---
+
 **作成日**: 2026-04-19
 **引き継ぎ元**: 前セッション（PIVOT_PLAN_v2.md v9 Codex review ok:true 到達時点）
 
