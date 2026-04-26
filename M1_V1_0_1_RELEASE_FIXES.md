@@ -1,7 +1,15 @@
 # M1 v1.0.1 リリース前 修正記録（クロージャ）
 
 > ステータス: **✅ クローズ済み（2026-04-26）**
-> 最後の doc-sync commit: `ca9cedd`（branch `refactor/m1-cleanup`、`main` から +40 commits）
+> Branch: `refactor/m1-cleanup`（未 push、`main` ブランチからのフォーク）
+> 主な doc-sync スナップショット履歴:
+> - `699623f`（2026-04-26、初回 closure record 化）
+> - `ca9cedd`（2026-04-26、iter 10 修正：C-task ✅ 化、§13 リネーム）
+> - `9d84949`（2026-04-26、iter 11 修正：HEAD/iter 数同期、OQ resolved 化）
+> - 本ファイル自身の最新更新は本コミット（iter 12 修正：current HEAD と doc-sync snapshot を明示分離）
+>
+> ⚠️ commit 数および HEAD 値は本ファイルがコミットされる度に更新されます。レビュー時の正確な値は `git log refactor/m1-cleanup` で確認してください。
+>
 > Phase 1 codex-review (arch): blocking すべて解消 / advisory はすべて適用済または M2 送り
 >
 > 本ファイルは Phase 1 codex-review (arch) **10+ 反復**の検出 blocker と対応の記録を保持する closure record です。
@@ -10,9 +18,9 @@
 ## サマリ
 
 - **対応期間**: 2026-04-21 〜 2026-04-26
-- **対象ブランチ**: `refactor/m1-cleanup`（`main` から +40 commits、最後の doc-sync `ca9cedd`）
+- **対象ブランチ**: `refactor/m1-cleanup`（`main` から派生、closure 直前の commit count は doc-sync スナップショット時点で +40 程度。本ファイル自身の更新で増減するため、現行 HEAD は `git log refactor/m1-cleanup` で確認）
 - **検出方法**: Phase 1 arch codex-review を 10+ 反復実行（max_iters 解除）
-- **解消した blocker**: B1〜B19 + iter10-A/B/C（公開ドキュメント・アプリ内画面・実装・内部計画書・正本ドキュメントの整合化のすべて）
+- **解消した blocker**: B1〜B19 + iter10-A/B/C + iter11-A/B/C + iter12-A（公開ドキュメント・アプリ内画面・実装・内部計画書・正本ドキュメントの整合化のすべて）
 - **M2 送り**: A1（旧 Pro SecureStore キー cleanup migration）/ A2（live URL 配信内容との一致確認 CI 整備）/ A3（内部計画書の本文書き直し or archive 退避、iter10-D HUMAN_TASKS_GUIDE.md 本文を含む）
 - **テスト**: 108 suites / 2201 tests pass、tsc --noEmit clean、lint 0 errors
 
