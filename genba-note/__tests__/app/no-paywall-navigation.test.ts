@@ -1,13 +1,11 @@
 /**
- * No Paywall Navigation (M1-1 regression guard)
+ * No Paywall Navigation (M1 regression guard)
  *
- * PIVOT_PLAN_v2.md §M1 コミット1 で paywall への到達経路を完全遮断する。
- * このテストは fs.readFileSync でソースを静的読み取りし、対象 9 ファイルに
- * '/paywall' リテラルおよび _layout.tsx の Stack.Screen name="paywall"
- * 登録が残っていないことを保証する。
- *
- * 注: paywall.tsx 本体と既存の paywall*.test.ts はコミット2 で削除予定。
- * このコミットでは到達経路の遮断のみを扱うため、それらはスコープ外。
+ * v1.0.1 で paywall を完全廃止した。このテストは fs.readFileSync でソースを
+ * 静的読み取りし、(1) 対象画面ソースに '/paywall' リテラルが残っていないこと、
+ * (2) _layout.tsx に Stack.Screen name="paywall" 登録が残っていないこと、
+ * (3) app/paywall.tsx 本体および app/paywallMessages.ts / app/paywallState.ts
+ * が存在しないこと を保証する。paywall 関連の旧 test ファイルは M1 で削除済み。
  */
 
 import * as fs from 'fs';

@@ -1,12 +1,9 @@
 /**
- * Root Layout — No Paid-Tier Initialization (M1-3 regression guard)
+ * Root Layout — No Paid-Tier Initialization (M1 regression guard)
  *
- * PIVOT_PLAN_v2.md §M1 コミット3 で RevenueCat SDK と Supabase Auth の
- * 初期化呼び出しを app/_layout.tsx から剥がす。このテストは静的に
- * ソースを読み、これらの初期化／import が再導入されていないことを保証する。
- *
- * 注: src/subscription/ と src/domain/auth/ の実装本体はコミット4 / 5
- * で削除予定。このテストは「呼び出し側から消えている」ことのみを担保する。
+ * v1.0.1 で RevenueCat SDK と Supabase Auth を完全撤去した。このテストは
+ * app/_layout.tsx を静的に読み、これらの初期化呼び出し／import が再導入
+ * されていないことを保証する。
  */
 
 import * as fs from 'fs';

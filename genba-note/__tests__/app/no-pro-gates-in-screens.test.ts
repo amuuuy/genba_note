@@ -1,19 +1,19 @@
 /**
  * No Pro Tier Gates in screens (M1 regression guard)
  *
- * PIVOT_PLAN_v2.md §M1 でアプリを完全無料化するため、以下の画面から
- * Pro ガード（useProStatus / freeTierLimitsService 呼び出し）を除去した。
+ * v1.0.1 でアプリを完全無料化したため、対象画面から Pro ガード
+ * （useProStatus / freeTierLimitsService 呼び出し、isPro 分岐、
+ * canCreate*/canAddPhoto/canSearch* gate helpers）を除去した。
  * このテストはそれらが再導入されていないことを保証する。
  *
- * 監視対象（M1 の進行に応じて追加される）:
- * - (tabs)/index, balance, prices, customers        (M1-5)
- * - customer/[id]                                   (M1-6)
- * - (tabs)/settings                                 (M1-7)
- * - document/[id]                                   (M1-8)
+ * 対象画面:
+ * - (tabs)/index, balance, prices, customers, settings
+ * - customer/[id]
+ * - document/[id]
  *
- * 未カバー（後続コミットで追加予定）:
- * - document/preview は useProStatus + resolveTemplateForUser を
- *   依然経由しており、次コミットで整理する
+ * document/preview.tsx は対象外。M1 で Pro 分岐は撤去済み（resolveTemplateForUser
+ * は v1.0.1 で全テンプレを許容する単純な resolver に縮小済）であり、
+ * 上記の正規表現にもヒットしないため独立した監視は不要。
  */
 
 import * as fs from 'fs';

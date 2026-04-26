@@ -1,5 +1,13 @@
 # M1 削除対象 棚卸し (2026-04-19)
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは **2026-04-19 時点の M1 着手前の棚卸しスナップショット** です。**役目終了済み**。
+> M1 実装は完了しました（refactor/m1-cleanup ブランチ、Acceptance pass + Codex review 通過）。本ファイルが指示する「TDD で進める」「git rm で削除」「10 コミットに分割」等の実行手順は **すべて完了** しています。
+> 新セッションで **本ファイルを実行手順として再利用しないでください**。
+> v1.0.1 以降の現行アーキテクチャは [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本としてください。
+> 本ファイルは M1 着手前棚卸しの履歴記録として保持しています。
+>
+> ---
+
 rg 対象キーワード: `supabase|RevenueCat|Purchases|isPro|dailyUsage|materialResearch|Rakuten|gemini-search|paywall`
 
 合計 96 ファイル検出。以下に6区分で分類（※印=部分削除・依存剥がしのみ、無印=ファイル全削除）。

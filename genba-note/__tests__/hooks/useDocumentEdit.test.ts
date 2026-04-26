@@ -1,10 +1,11 @@
 /**
  * useDocumentEdit Pure Functions & Integration Tests
  *
- * Tests the validation, state shape logic, and isPro propagation.
- * renderHook is unavailable (testEnvironment: 'node'), so hook callbacks
- * are tested via the extracted `performDocumentCreate` function
- * (same pattern as useKanbanBoard's resolveHandleDrop).
+ * Tests the validation, state shape logic, and the integration behavior
+ * of `performDocumentCreate`. renderHook is unavailable (testEnvironment:
+ * 'node'), so hook callbacks are tested via the extracted
+ * `performDocumentCreate` function (same pattern as useKanbanBoard's
+ * resolveHandleDrop).
  */
 
 // Mock expo-secure-store and domain services before imports
