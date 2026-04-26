@@ -33,7 +33,7 @@
 - [x] 2026-04-21: M1 実装完了（C1〜C10、`refactor/m1-cleanup` ブランチ）+ Acceptance #1〜#5 全 pass + Codex review #1〜#3 ok:true で収束
 - [x] 2026-04-21: M1 補完（C11 Sentry crash-only、C12 v1.0.1 bump、C13 OTA 無効化、C14 watermark 削除 + 履歴ドキュメントの OBSOLETE バナー化）
 - [x] 2026-04-21: App Store Connect で IAP（`genbanote_pro_monthly_v1` + `genbanote_pro_annual`）を Remove from Sale 実施
-- [x] 2026-04-21〜04-26: ストアメタ・公開ドキュメント (privacy/terms) 整合修正、Phase 1 arch review 9 回反復で収束（B1〜B20+ 全解消、A1 のみ M2 送り）
+- [x] 2026-04-21〜04-26: ストアメタ・公開ドキュメント (privacy/terms) 整合修正、Phase 1 arch review 9 回反復で収束（B1〜B19 全解消、A1/A2/A3 を M2 送りとして closure record に記録）
 - [ ] PR `refactor/m1-cleanup` → `main` 作成 → マージ → EAS Build production iOS → submit v1.0.1
 - [ ] M2 残タスク: 旧 Pro SecureStore キー cleanup migration（v10）、内部計画ドキュメントのセクション単位での全面書き直し、live URL `genba-note.app/privacy` `/terms` の repo 配信内容との一致確認 CI 化
 
@@ -253,36 +253,36 @@ UI → consumer 剥がし → ドメイン本体削除 → config の順。**各
 | `app/(tabs)/customers.tsx` | 上限表示削除 | [✅ C3-pre] M1-1, M1-5 |
 | `app/(tabs)/balance.tsx` | 上限表示削除 | [✅ C3-pre] M1-1, M1-5 |
 | `app/_layout.tsx` | RevenueCat / Supabase 初期化削除、paywall route 削除 | [✅ C3-pre] M1-1, M1-3 |
-| `app/document/[id].tsx` | `useProStatus` 削除 / `useDocumentEdit(..., true)` の isPro 引数 caller cleanup | [部分完了 → C3-rest-1] M1-1, M1-8 で `useProStatus` 除去完了。残る `useDocumentEdit(..., true)` の `true` リテラル削除は **C3-rest-1** で useDocumentEdit 引数削除と同時実施 |
-| `app/document/preview.tsx` | `useProStatus` 削除、`resolveTemplateForUser` の isPro 分岐削除 | [⬜ C3-rest-2] ※M1-1 / M1-3a で header と paywall redirect は削除済、stub `useProStatus()` 呼び出しと `resolveTemplateForUser(..., isPro)` call site を C3-rest-2 で修正 |
+| `app/document/[id].tsx` | `useProStatus` 削除 / `useDocumentEdit(..., true)` の isPro 引数 caller cleanup | [✅ C3-rest-1 で完了] M1-1, M1-8 で `useProStatus` 除去完了。残る `useDocumentEdit(..., true)` の `true` リテラル削除は **C3-rest-1** で useDocumentEdit 引数削除と同時実施 |
+| `app/document/preview.tsx` | `useProStatus` 削除、`resolveTemplateForUser` の isPro 分岐削除 | [✅ C3-rest-2] (`aa91942`) ※M1-1 / M1-3a で header と paywall redirect は削除済、stub `useProStatus()` 呼び出しと `resolveTemplateForUser(..., isPro)` call site を C3-rest-2 で修正 |
 | `app/customer/[id].tsx` | `useProStatus` 削除 | [✅ C3-pre] M1-1, M1-6 |
-| `src/components/settings/TemplateSelectionSection.tsx` | (a) `getSelectableTemplateOptions(true)` の `true` 引数削除 / (b) L68-72 の `option.requiresPro && (...)` PRO バッジ branch 削除（`requiresPro` フィールド撤去に追従） | [部分完了 → C3-rest-2] M1-7 で一部整理済。`true` リテラル caller + dead PRO バッジ UI branch は **C3-rest-2** で除去 |
+| `src/components/settings/TemplateSelectionSection.tsx` | (a) `getSelectableTemplateOptions(true)` の `true` 引数削除 / (b) L68-72 の `option.requiresPro && (...)` PRO バッジ branch 削除（`requiresPro` フィールド撤去に追従） | [✅ C3-rest-2 で完了] M1-7 で一部整理済。`true` リテラル caller + dead PRO バッジ UI branch は **C3-rest-2** で除去 |
 | `src/components/document/edit/SaveActionSheet.tsx` | Pro 制限削除 | [✅ C3-pre] M1-8 |
-| `src/components/document/TemplatePickerModal.tsx` | Pro テンプレ制限削除（`getSelectableTemplateOptions(isPro)` の isPro prop 依存除去 + L83 の `option.requiresPro && (...)` PRO バッジ branch 削除） | [⬜ C3-rest-2] |
-| `src/components/common/ActionSheetModal.tsx` | (a) `ActionSheetOption.isPro` prop 型定義削除 (L36) / (b) L118 近辺の `option.isPro` による Pro badge branch 削除 | [⬜ C3-rest-3] |
+| `src/components/document/TemplatePickerModal.tsx` | Pro テンプレ制限削除（`getSelectableTemplateOptions(isPro)` の isPro prop 依存除去 + L83 の `option.requiresPro && (...)` PRO バッジ branch 削除） | [✅ C3-rest-2] (`aa91942`) |
+| `src/components/common/ActionSheetModal.tsx` | (a) `ActionSheetOption.isPro` prop 型定義削除 (L36) / (b) L118 近辺の `option.isPro` による Pro badge branch 削除 | [✅ C3-rest-3] (`817df50`) |
 | `src/components/unitPrice/UnitPriceEditorModal.tsx` | — | [✅ C2 で完全クリア] 実コード確認の結果 Material* / useMaterialSearch / useAiPriceSearch 依存は残存せず、C3 完了条件 rg にもヒットしない。追加作業不要 |
 | `src/components/document/edit/LineItemList.tsx` | 材料検索ボタン削除 | [✅ C2] `bb4c5f4` で MaterialSearchModal import / researchModalVisible / handleResearchAddLineItems / researchButton Pressable / styles を全削除 |
 | `src/components/unitPrice/index.ts` | Material* export 削除 | [✅ C2] `bb4c5f4` で Material*/AiSearch*/AiPriceItemCard の re-export を削除 |
-| `src/domain/document/documentService.ts` | `isPro` 引数・`freeTierLimitsService` 参照削除 | [⬜ C3-rest-1] |
-| `src/domain/document/conversionService.ts` | `freeTierLimitsService` 参照削除 | [⬜ C3-rest-1] |
-| `src/domain/csvExport/csvFileService.ts` | `checkProStatus` 削除、Pro gating 削除 | [⬜ C3-rest-2] |
-| `src/pdf/pdfGenerationService.ts` | `checkProStatus` 削除 + `injectSampleWatermark` 呼び出し削除（完全無料化方針で全ユーザーに clean PDF 常時出力）、`resolveTemplateForUser(..., isPro)` call site 更新 | [⬜ C3-rest-2] |
-| `src/pdf/index.ts` | `checkProStatus` re-export 削除、`ProGateReason` / `ProGateResult` type export 削除 | [⬜ C3-rest-2] |
-| `src/pdf/types.ts` | `@/subscription/types` re-export 削除、`ProGateReason` / `ProGateResult` 型定義削除 | [⬜ C3-rest-2] |
-| `src/constants/templateOptions.ts` | (a) `isProTemplate` 関数ごと削除 / (b) `resolveTemplateForUser` の `isPro` 引数除去 / (c) `getSelectableTemplateOptions` の `isPro` 引数除去 + L86 の `disabled: !isPro && option.requiresPro` 分岐削除 / (d) `TEMPLATE_OPTIONS` 各エントリの `requiresPro: false` フィールドおよび型定義から `requiresPro` プロパティ削除（caller の PRO バッジ branch 削除に連動） | [部分完了 → C3-rest-2] M1-7 で呼び出し側を `isPro=true` 等価へ誘導済み。関数削除・引数除去・フィールド削除は **C3-rest-2** で実施 |
-| `src/constants/errorMessages.ts` | `ProGateReason` import 削除、`PRO_GATE_MESSAGES` / `SUBSCRIPTION_ERROR_MESSAGES` / `getProGateMessage` / `getSubscriptionErrorMessage` 削除 | [⬜ C3-rest-2] ※`src/pdf/types.ts` の ProGateReason 型削除と同 commit で処理（型エラー連鎖を防ぐため） |
-| `src/constants/index.ts` | `PRO_GATE_MESSAGES` / `SUBSCRIPTION_ERROR_MESSAGES` / `getProGateMessage` / `getSubscriptionErrorMessage` の re-export 削除 | [⬜ C3-rest-2] ※`errorMessages.ts` 本体変更と同 commit |
-| `src/hooks/index.ts` | `useProStatus` / `UseProStatusReturn` re-export 削除 | [⬜ C3-rest-3] |
-| `src/hooks/useDocumentEdit.ts` | `createDocument(input, { isPro })` → `createDocument(input)` 更新（materialResearch 連携は既に残存せず、C2 以前の何らかの剥がしで消化済） | [⬜ C3-rest-1] |
-| `src/types/index.ts` | `subscription` / `materialResearch` re-export 削除 | [⬜ C3-rest-3] |
-| `src/storage/secureStorageService.ts` | `@/types/subscription` import 削除、`SubscriptionCache` / `SUBSCRIPTION_STORE_KEYS` 参照と `getSubscriptionCache` / `saveSubscriptionCache` / `clearSubscriptionCache` 関数削除 | [⬜ C4] `src/subscription/subscriptionService.ts` と `__tests__/subscription/subscriptionService.test.ts` が subscription cache mock を前提にしているため C4 本体削除と同 commit |
-| `src/storage/index.ts` | 上記 3 関数の re-export 削除 | [⬜ C4] `secureStorageService` 本体変更と同 commit |
-| `__tests__/hooks/useDocumentEdit.test.ts` | `isPro` 伝搬検証テスト削除（materialResearch 連携テストは既に残存せず） | [⬜ C3-rest-1] `useDocumentEdit.ts` 本体変更と同 commit |
-| `__tests__/constants/templateOptions.test.ts` | `isProTemplate` / `resolveTemplateForUser` テスト削除（該当関数の `isPro` 引数除去と同時） | [部分完了 → C3-rest-2] M1-7 で 102→37 行に縮小済。`isPro` 引数を使った no-op 検証テストの最終調整は **C3-rest-2** で実施 |
-| `__tests__/domain/document/documentService.test.ts` | `FREE_DOCUMENT_LIMIT` / `{ isPro }` 依存テスト削除 | [⬜ C3-rest-1] `documentService.ts` 本体変更と同 commit |
-| `__tests__/domain/document/conversionService.test.ts` | `freeTierLimitsService` 依存テスト削除 | [⬜ C3-rest-1] `conversionService.ts` 本体変更と同 commit |
-| `__tests__/domain/csvExport/csvFileService.test.ts` | `@/subscription/proAccessService` 依存テスト削除 | [⬜ C3-rest-2] `csvFileService.ts` 本体変更と同 commit |
-| `__tests__/pdf/pdfGenerationService.test.ts` | `checkProStatus` 依存テスト削除 | [⬜ C3-rest-2] `pdfGenerationService.ts` 本体変更と同 commit |
+| `src/domain/document/documentService.ts` | `isPro` 引数・`freeTierLimitsService` 参照削除 | [✅ C3-rest-1] (`689be9d`) |
+| `src/domain/document/conversionService.ts` | `freeTierLimitsService` 参照削除 | [✅ C3-rest-1] (`689be9d`) |
+| `src/domain/csvExport/csvFileService.ts` | `checkProStatus` 削除、Pro gating 削除 | [✅ C3-rest-2] (`aa91942`) |
+| `src/pdf/pdfGenerationService.ts` | `checkProStatus` 削除 + `injectSampleWatermark` 呼び出し削除（完全無料化方針で全ユーザーに clean PDF 常時出力）、`resolveTemplateForUser(..., isPro)` call site 更新 | [✅ C3-rest-2] (`aa91942`) |
+| `src/pdf/index.ts` | `checkProStatus` re-export 削除、`ProGateReason` / `ProGateResult` type export 削除 | [✅ C3-rest-2] (`aa91942`) |
+| `src/pdf/types.ts` | `@/subscription/types` re-export 削除、`ProGateReason` / `ProGateResult` 型定義削除 | [✅ C3-rest-2] (`aa91942`) |
+| `src/constants/templateOptions.ts` | (a) `isProTemplate` 関数ごと削除 / (b) `resolveTemplateForUser` の `isPro` 引数除去 / (c) `getSelectableTemplateOptions` の `isPro` 引数除去 + L86 の `disabled: !isPro && option.requiresPro` 分岐削除 / (d) `TEMPLATE_OPTIONS` 各エントリの `requiresPro: false` フィールドおよび型定義から `requiresPro` プロパティ削除（caller の PRO バッジ branch 削除に連動） | [✅ C3-rest-2 で完了] M1-7 で呼び出し側を `isPro=true` 等価へ誘導済み。関数削除・引数除去・フィールド削除は **C3-rest-2** で実施 |
+| `src/constants/errorMessages.ts` | `ProGateReason` import 削除、`PRO_GATE_MESSAGES` / `SUBSCRIPTION_ERROR_MESSAGES` / `getProGateMessage` / `getSubscriptionErrorMessage` 削除 | [✅ C3-rest-2] (`aa91942`) ※`src/pdf/types.ts` の ProGateReason 型削除と同 commit で処理（型エラー連鎖を防ぐため） |
+| `src/constants/index.ts` | `PRO_GATE_MESSAGES` / `SUBSCRIPTION_ERROR_MESSAGES` / `getProGateMessage` / `getSubscriptionErrorMessage` の re-export 削除 | [✅ C3-rest-2] (`aa91942`) ※`errorMessages.ts` 本体変更と同 commit |
+| `src/hooks/index.ts` | `useProStatus` / `UseProStatusReturn` re-export 削除 | [✅ C3-rest-3] (`817df50`) |
+| `src/hooks/useDocumentEdit.ts` | `createDocument(input, { isPro })` → `createDocument(input)` 更新（materialResearch 連携は既に残存せず、C2 以前の何らかの剥がしで消化済） | [✅ C3-rest-1] (`689be9d`) |
+| `src/types/index.ts` | `subscription` / `materialResearch` re-export 削除 | [✅ C3-rest-3] (`817df50`) |
+| `src/storage/secureStorageService.ts` | `@/types/subscription` import 削除、`SubscriptionCache` / `SUBSCRIPTION_STORE_KEYS` 参照と `getSubscriptionCache` / `saveSubscriptionCache` / `clearSubscriptionCache` 関数削除 | [✅ C4] (`7827596`) `src/subscription/subscriptionService.ts` と `__tests__/subscription/subscriptionService.test.ts` が subscription cache mock を前提にしているため C4 本体削除と同 commit |
+| `src/storage/index.ts` | 上記 3 関数の re-export 削除 | [✅ C4] (`7827596`) `secureStorageService` 本体変更と同 commit |
+| `__tests__/hooks/useDocumentEdit.test.ts` | `isPro` 伝搬検証テスト削除（materialResearch 連携テストは既に残存せず） | [✅ C3-rest-1] (`689be9d`) `useDocumentEdit.ts` 本体変更と同 commit |
+| `__tests__/constants/templateOptions.test.ts` | `isProTemplate` / `resolveTemplateForUser` テスト削除（該当関数の `isPro` 引数除去と同時） | [✅ C3-rest-2 で完了] M1-7 で 102→37 行に縮小済。`isPro` 引数を使った no-op 検証テストの最終調整は **C3-rest-2** で実施 |
+| `__tests__/domain/document/documentService.test.ts` | `FREE_DOCUMENT_LIMIT` / `{ isPro }` 依存テスト削除 | [✅ C3-rest-1] (`689be9d`) `documentService.ts` 本体変更と同 commit |
+| `__tests__/domain/document/conversionService.test.ts` | `freeTierLimitsService` 依存テスト削除 | [✅ C3-rest-1] (`689be9d`) `conversionService.ts` 本体変更と同 commit |
+| `__tests__/domain/csvExport/csvFileService.test.ts` | `@/subscription/proAccessService` 依存テスト削除 | [✅ C3-rest-2] (`aa91942`) `csvFileService.ts` 本体変更と同 commit |
+| `__tests__/pdf/pdfGenerationService.test.ts` | `checkProStatus` 依存テスト削除 | [✅ C3-rest-2] (`aa91942`) `pdfGenerationService.ts` 本体変更と同 commit |
 
 **C3 完了条件（v11.8 拡張版）**: `cd genba-note` 後に以下を実行し、出力が空。plain `isPro`、subscription cache 関連 ID、再 export パス（`./subscription` / `./materialResearch`）、`useDocumentEdit(..., true)` caller、`getSelectableTemplateOptions(true)` caller、`requiresPro`（テンプレ Pro 限定フィールド + PRO バッジ UI branch）、さらに `PRO_GATE_MESSAGES` 系定数・関数まで網羅するよう `-e` パターンを拡張。`src/storage/secureStorageService.ts` と `src/storage/index.ts` は C4 で subscription 本体削除と同 commit で処理するため glob 除外に追加。
 
@@ -1340,7 +1340,15 @@ Codex指摘: App Review Guidelines 2.3 / 2.3.12 は各バージョンで metadat
 
 ---
 
-## 13. Open Questions（承認前の残タスク）
+## 13. Resolved historical notes（v9 承認前の残タスク・解決済み）
+
+> ⚠️ **本セクションはすべて 2026-04-20 の Yuma 最終承認時点で解決済みの履歴注記です。**
+> 現役 pending タスクとしては読まないでください。M1 着手前に整理が必要だった OQ1〜OQ3 を
+> 当時の検討内容として履歴目的で保持しています。
+>
+> - **OQ1**: stash した paywall 変更 → M1 で paywall 自体を全削除したため、stash 内容も自然と obsolete 化。Yuma が破棄判断済
+> - **OQ2**: feature branch 名称（`refactor/m1-cleanup`） → 採用済、本ブランチで M1 完了
+> - **OQ3**: M1 着手タイミング → 2026-04-20 Yuma 最終承認 → M1 着手 → 2026-04-21 完了
 
 ### OQ1: stash した paywall 変更の扱い
 

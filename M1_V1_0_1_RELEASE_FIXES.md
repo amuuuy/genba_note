@@ -1,19 +1,19 @@
 # M1 v1.0.1 リリース前 修正記録（クロージャ）
 
 > ステータス: **✅ クローズ済み（2026-04-26）**
-> 最終 commit: `cae1f8e` + 16539c2 fixup（branch `refactor/m1-cleanup`）
+> 最終 commit: `699623f`（branch `refactor/m1-cleanup`、`main` から +36 commits）
 > Phase 1 codex-review (arch): blocking すべて解消 / advisory はすべて適用済または M2 送り
 >
-> 本ファイルは Phase 1 codex-review (arch) 9 反復の検出 blocker と対応の記録を保持する closure record です。
+> 本ファイルは Phase 1 codex-review (arch) 10 反復の検出 blocker と対応の記録を保持する closure record です。
 > v1.0.1 の現行アーキテクチャ正本: [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md)（M1 完了状態に同期済）。
 
 ## サマリ
 
 - **対応期間**: 2026-04-21 〜 2026-04-26
-- **対象ブランチ**: `refactor/m1-cleanup`（`main` から +35+ commits）
-- **検出方法**: Phase 1 arch codex-review を 9 反復実行（max_iters 解除）
-- **解消した blocker**: B1〜B19+（公開ドキュメント・アプリ内画面・実装・内部計画書のすべて）
-- **M2 送り**: A1（旧 Pro SecureStore キー cleanup migration）+ live URL 配信内容との一致確認 CI 整備
+- **対象ブランチ**: `refactor/m1-cleanup`（`main` から +36 commits、最新 `699623f`）
+- **検出方法**: Phase 1 arch codex-review を 10 反復実行（max_iters 解除、`ok:true` 収束）
+- **解消した blocker**: B1〜B19（公開ドキュメント・アプリ内画面・実装・内部計画書・正本ドキュメントの整合化のすべて）
+- **M2 送り**: A1（旧 Pro SecureStore キー cleanup migration）/ A2（live URL 配信内容との一致確認 CI 整備）/ A3（内部計画書の本文書き直し or archive 退避）
 - **テスト**: 108 suites / 2201 tests pass、tsc --noEmit clean、lint 0 errors
 
 ## 解消した blocker 一覧
@@ -79,12 +79,21 @@
 | advisory | 4 つの regression-guard test header | M1 進行中前提の予定表現（「コミット2 で削除予定」など）が stale → 現在形に整理 | ✅ |
 | (fixup) | `no-pro-gates-in-screens.test.ts` | header 内の `*/` glob シンタックスが JSDoc 終端と衝突して TS parse エラー → 表現を「canCreate / canAddPhoto / canSearch 等の gate helpers」に変更 | ✅ commit 16539c2 |
 
-### iter 9（2026-04-26 検出 / 同日解消、commit `cae1f8e` 続き）
+### iter 9（2026-04-26 検出 / 同日解消、commit `699623f`）
 
 | ID | 場所 | 内容 | 状態 |
 |----|------|------|------|
 | B18 | PIVOT_PLAN_v2.md Progress + C-task 表 | 正本にもかかわらず「Yuma 最終承認待ち」のまま、C3-rest-1 以降を「未着手」と表示 → 現在状態（M1 実装完了 + Acceptance + Codex review 収束 + B1-B19 解消）に同期、C-task すべて完了に更新 | ✅ |
-| B19 | M1_V1_0_1_RELEASE_FIXES.md（本ファイル） | 末尾手順が「[B1]〜[B5] 修正 → review → commit → PR」の pending 形のまま → 本書き直しで closure record に変換、各 B/A 項目に解消 commit/日付を追記 | ✅ |
+| B19 | M1_V1_0_1_RELEASE_FIXES.md（本ファイル） | 末尾手順が「[B1]〜[B5] 修正 → review → commit → PR」の pending 形のまま → closure record に全面書き換え、各 B/A 項目に解消 commit/日付を追記 | ✅ |
+
+### iter 10（2026-04-26 検出 / 同日解消、commit 本コミット）
+
+| ID | 場所 | 内容 | 状態 |
+|----|------|------|------|
+| iter10-A | PIVOT_PLAN_v2.md C-task 詳細表 (L249-285) | `[⬜ C3-rest-*]` / `[⬜ C4]` / `[部分完了 → ...]` といった未完了マーカーが現役表記として残存 → 全項目を `[✅ ...]` + 解消 commit ハッシュに更新 | ✅ |
+| iter10-B | PIVOT_PLAN_v2.md §13 Open Questions (L1343+) | 「承認前の残タスク」見出しと OQ1〜OQ3 が現役 pending として読める → セクション名を「Resolved historical notes（v9 承認前の残タスク・解決済み）」に変更し、解決状況を冒頭で要約 | ✅ |
+| iter10-C | M1_V1_0_1_RELEASE_FIXES.md ヘッダの最終 commit | `cae1f8e + 16539c2 fixup` → `699623f` に更新（doc sync の最新コミット） | ✅ |
+| iter10-D (advisory) | HUMAN_TASKS_GUIDE.md 本文 | OBSOLETE バナー追加済みだが本文に「未着手」「ブロック中」の現役進捗ラベルが残存 → A3 で M2 にて archive 退避予定として closure record にも明記 | ✅ M2 送り |
 
 ## M2 送り（残件）
 
