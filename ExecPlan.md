@@ -1,5 +1,17 @@
 # GenBa Note 実装計画 (ExecPlan)
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 / Pro tier 時代の実装計画です。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、本ファイル中の Pro 機能・RevenueCat・Supabase・materialResearch・OTA 関連の記述はすべて旧前提として参考扱いとします:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat**
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+> - **expo-updates OTA**
+>
+> v1.0.1 以降の **現行アーキテクチャ・実装計画は [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本** とします。
+> 本ファイルは v1.0.0 当時の計画として履歴目的で保持しています。
+>
+> ---
+
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 This document must be maintained in accordance with PLANS.md located at `./PLANS.md`.

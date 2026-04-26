@@ -1,5 +1,18 @@
 # GenBa Note（現場ノート） 要件定義書
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 仕様書です。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、本ファイル中の Pro 機能境界・Paywall 遷移・RevenueCat 課金/復元・オフライン Pro 判定・materialResearch（AI資材検索/楽天）等の現行仕様としての記述はすべて旧前提として参考扱いとします:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat / Paywall**
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+> - **expo-updates OTA**
+>
+> v1.0.1 以降の **現行仕様・アーキテクチャは [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本** とします。
+> 公開ドキュメント（プライバシーポリシー / 利用規約 / ストアメタデータ）は v1.0.1 完全無料化方針で更新済（refactor/m1-cleanup ブランチ）。
+> 本ファイルは v1.0.0 当時の仕様として履歴目的で保持しています。
+>
+> ---
+
 **バージョン:** 1.0
 **最終更新日:** 2026-01-30
 **ステータス:** 初版

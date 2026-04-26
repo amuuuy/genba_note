@@ -1,5 +1,18 @@
 # GenBa Note リリース手作業ガイド
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 リリース時の手作業ガイドです。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、paywall URL 差し替え・RevenueCat 本番設定・Sandbox 課金テスト・Supabase/Gemini/楽天確認・旧 privacy 必須事項などはすべて **OBSOLETE** です:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat / Paywall**（IAP は 2026-04-21 に Remove from Sale 済み）
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+> - **expo-updates OTA**（Option A 採択で無効化）
+>
+> v1.0.1 の release gate は [`ISSUES.md`](ISSUES.md) 冒頭の3点 + [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) を正本としてください。
+> 廃止経緯と現行状態は [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を参照。
+> 本ファイルは v1.0.0 当時の手作業ガイドとして履歴目的で保持しています。
+>
+> ---
+
 > 作成日: 2026-03-06
 > 対象: Yuma が手動で実施する残タスク
 > 参照: UNIMPLEMENTED.md（マスター管理）

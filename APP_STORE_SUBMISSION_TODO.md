@@ -1,5 +1,22 @@
 # App Store 審査提出 残りタスク
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 提出時の手順書です。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、RevenueCat 設定・旧アプリ名「Genba Note」・Pro機能説明・購入履歴/Supabase UUID/AI検索クエリのプライバシーラベル・課金/復元/資材検索フロー確認はすべて **OBSOLETE** です:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat**（IAP は 2026-04-21 に Remove from Sale 済み）
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+>
+> **v1.0.1 の release gate は 3 点のみ**:
+> 1. ローカル機能の実機回帰確認
+> 2. Sentry エラーレポート受信確認
+> 3. 公開ドキュメント（privacy / terms / store metadata）の整合確認
+>
+> v1.0.1 提出手順の正本は [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) と [`docs/store-metadata-ja.md`](docs/store-metadata-ja.md) を参照。
+> アプリ正式名は「ポチッと事務」（app.json の `expo.name` 準拠）。
+> 本ファイルは v1.0.0 当時の手順として履歴目的で保持しています。
+>
+> ---
+
 > 作成日: 2026-03-26
 > 対象: iOS App Store（Android は後回し）
 > 状態: PR #5 マージ済み、テスト全パス（130 suites / 2589 tests）
