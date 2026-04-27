@@ -16,8 +16,6 @@ import {
   useReadOnlyModeContext,
 } from '@/contexts/ReadOnlyModeContext';
 import { ReadOnlyBanner, ErrorBoundary } from '@/components/common';
-import { configureRevenueCat } from '@/subscription';
-import { initializeAuth } from '@/domain/auth';
 import { cleanupOrphanedPdfCache } from '@/pdf/pdfGenerationService';
 import {
   initializeSentry,
@@ -38,39 +36,11 @@ function RootLayoutContent() {
   const { isReadOnlyMode, isInitialized, migrationError, retryMigrations } =
     useReadOnlyModeContext();
   const [isRetrying, setIsRetrying] = useState(false);
-  const [isRevenueCatReady, setIsRevenueCatReady] = useState(false);
 
   // Cleanup orphaned PDF cache files from previous app crashes
   useEffect(() => {
     cleanupOrphanedPdfCache();
   }, []);
-
-  // Initialize Supabase Anonymous Auth (non-blocking — failure only affects search)
-  useEffect(() => {
-    if (!isInitialized) return;
-    initializeAuth().then((result) => {
-      if (!result.success && __DEV__) {
-        console.error('Auth init failed:', result.error);
-      }
-    });
-  }, [isInitialized]);
-
-  // Initialize RevenueCat SDK once after migrations complete.
-  // Must complete before Stack mounts to prevent child useEffect race conditions.
-  useEffect(() => {
-    if (!isInitialized || isRevenueCatReady) return;
-    const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_PUBLIC_KEY;
-    if (!apiKey) {
-      setIsRevenueCatReady(true);
-      return;
-    }
-    configureRevenueCat(apiKey).then((result) => {
-      if (!result.success && __DEV__) {
-        console.error('RevenueCat init failed:', result.error?.code);
-      }
-      setIsRevenueCatReady(true);
-    });
-  }, [isInitialized, isRevenueCatReady]);
 
   const handleRetry = useCallback(async () => {
     setIsRetrying(true);
@@ -81,8 +51,8 @@ function RootLayoutContent() {
     }
   }, [retryMigrations]);
 
-  // Show loading while migrations are running or RevenueCat is initializing
-  if (!isInitialized || !isRevenueCatReady) {
+  // Show loading while migrations are running
+  if (!isInitialized) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -117,13 +87,6 @@ function RootLayoutContent() {
           options={{
             title: 'プレビュー',
             headerBackTitle: '戻る',
-          }}
-        />
-        <Stack.Screen
-          name="paywall"
-          options={{
-            title: 'Proプラン',
-            presentation: 'modal',
           }}
         />
         <Stack.Screen

@@ -4,7 +4,7 @@
  * Action sheet for document save options:
  * - Preview (review without saving)
  * - Save as Draft
- * - Publish PDF (Pro feature)
+ * - Publish PDF
  */
 
 import React, { useMemo } from 'react';
@@ -22,8 +22,6 @@ export interface SaveActionSheetProps {
   currentStatus: DocumentStatus | null;
   /** Whether a save operation is in progress */
   isSaving: boolean;
-  /** Whether the user has Pro status */
-  isPro: boolean;
   /** Called when Preview is selected */
   onPreview: () => void;
   /** Called when Save as Draft is selected */
@@ -45,7 +43,6 @@ export const SaveActionSheet: React.FC<SaveActionSheetProps> = ({
   isNewDocument,
   currentStatus,
   isSaving,
-  isPro,
   onPreview,
   onSaveDraft,
   onPublishPdf,
@@ -83,14 +80,14 @@ export const SaveActionSheet: React.FC<SaveActionSheetProps> = ({
       },
       {
         id: 'publish-pdf',
-        label: isPro ? 'PDF発行' : 'PDF発行（SAMPLE透かし付き）',
+        label: 'PDF発行',
         sublabel: pdfSublabel,
         icon: 'share-outline',
         iconColor: '#007AFF',
         disabled: isSaving,
       },
     ];
-  }, [isDirty, isNewDocument, isSaving, isPro, pdfSublabel]);
+  }, [isDirty, isNewDocument, isSaving, pdfSublabel]);
 
   const handleSelect = (optionId: string) => {
     switch (optionId) {

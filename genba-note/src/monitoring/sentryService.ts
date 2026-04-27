@@ -36,7 +36,8 @@ export function initializeSentry(dsn: string): SentryResult<void> {
   try {
     Sentry.init({
       dsn,
-      tracesSampleRate: 0.2,
+      // Crash-only. Performance tracing disabled by privacy policy.
+      tracesSampleRate: 0,
       sendDefaultPii: false,
       beforeSend(event) {
         // Strip user IP addresses that Sentry may auto-collect

@@ -2,33 +2,8 @@
  * Tests for PDF Generation Service
  *
  * These tests mock expo-print, expo-sharing, and expo-file-system to test the service logic.
- *
- * NOTE: generatePdf and sharePdf are internal functions (not exported) to enforce Pro gating.
- * All tests must go through generateAndSharePdf which enforces Pro status check.
+ * All tests exercise the public generateAndSharePdf entry point.
  */
-
-// Mock react-native-purchases (required by subscription service)
-jest.mock('react-native-purchases', () => ({
-  __esModule: true,
-  default: {
-    configure: jest.fn(),
-    getCustomerInfo: jest.fn(),
-    restorePurchases: jest.fn(),
-  },
-}));
-
-// Mock expo-secure-store (required by subscription service)
-jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(),
-  setItemAsync: jest.fn(),
-  deleteItemAsync: jest.fn(),
-}));
-
-// Mock react-native-device-info (required by uptime service)
-jest.mock('react-native-device-info', () => ({
-  __esModule: true,
-  getStartupTime: jest.fn(),
-}));
 
 // Mock functions for File class (same pattern as csvFileService tests)
 const mockFileCopy = jest.fn();
@@ -60,7 +35,6 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import * as singlePageService from '@/pdf/singlePageService';
-import { setProStatusOverride, resetProStatusOverride } from '@/subscription/proAccessService';
 import { setReadOnlyMode } from '@/storage/asyncStorageService';
 import { createTestTemplateInput } from './helpers';
 
@@ -69,39 +43,16 @@ describe('pdfGenerationService', () => {
     jest.clearAllMocks();
     mockFileCopy.mockReset();
     mockFileDelete.mockReset();
-    resetProStatusOverride();
     setReadOnlyMode(false);
   });
 
   afterEach(() => {
-    resetProStatusOverride();
     setReadOnlyMode(false);
   });
 
   describe('generateAndSharePdf', () => {
-    describe('Free vs Pro watermark behavior', () => {
-      it('generates PDF with watermark when not Pro', async () => {
-        setProStatusOverride(false);
-        (Print.printToFileAsync as jest.Mock).mockResolvedValue({
-          uri: 'file:///generated.pdf',
-        });
-        (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(true);
-        (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
-
-        const input = createTestTemplateInput();
-        const result = await generateAndSharePdf(input);
-
-        // Free users can generate PDFs (with watermark)
-        expect(result.success).toBe(true);
-        expect(Print.printToFileAsync).toHaveBeenCalled();
-        // Verify watermark was injected into the HTML
-        const htmlArg = (Print.printToFileAsync as jest.Mock).mock.calls[0][0].html;
-        expect(htmlArg).toContain('sample-watermark');
-        expect(htmlArg).toContain('SAMPLE');
-      });
-
-      it('generates PDF without watermark when Pro', async () => {
-        setProStatusOverride(true);
+    describe('watermark-free output', () => {
+      it('generates PDF without SAMPLE watermark for all users', async () => {
         (Print.printToFileAsync as jest.Mock).mockResolvedValue({
           uri: 'file:///generated.pdf',
         });
@@ -113,17 +64,13 @@ describe('pdfGenerationService', () => {
 
         expect(result.success).toBe(true);
         expect(Print.printToFileAsync).toHaveBeenCalled();
-        // Verify NO watermark in Pro PDF
         const htmlArg = (Print.printToFileAsync as jest.Mock).mock.calls[0][0].html;
         expect(htmlArg).not.toContain('sample-watermark');
+        expect(htmlArg).not.toContain('SAMPLE');
       });
     });
 
-    describe('with Pro status', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
+    describe('core flow', () => {
       describe('PDF generation (internal)', () => {
         it('calls Print.printToFileAsync with generated HTML', async () => {
           (Print.printToFileAsync as jest.Mock).mockResolvedValue({
@@ -253,7 +200,6 @@ describe('pdfGenerationService', () => {
 
     describe('orientation option (M18)', () => {
       beforeEach(() => {
-        setProStatusOverride(true);
         (Print.printToFileAsync as jest.Mock).mockResolvedValue({
           uri: 'file:///generated.pdf',
         });
@@ -325,7 +271,6 @@ describe('pdfGenerationService', () => {
 
     describe('customFilename option (M19)', () => {
       beforeEach(() => {
-        setProStatusOverride(true);
         (Print.printToFileAsync as jest.Mock).mockResolvedValue({
           uri: 'file:///tmp/random-uuid.pdf',
         });
@@ -451,7 +396,6 @@ describe('pdfGenerationService', () => {
 
     describe('single-page enforcement', () => {
       beforeEach(() => {
-        setProStatusOverride(true);
         (Print.printToFileAsync as jest.Mock).mockResolvedValue({
           uri: 'file:///generated.pdf',
         });
@@ -478,14 +422,11 @@ describe('pdfGenerationService', () => {
         expect(calledHtml).toContain('<script>');
       });
 
-      it('injects all three enhancements for free user in landscape', async () => {
-        setProStatusOverride(false);
+      it('injects landscape + single-page enhancements together', async () => {
         const input = createTestTemplateInput();
         await generateAndSharePdf(input, { orientation: 'LANDSCAPE' });
 
         const calledHtml = (Print.printToFileAsync as jest.Mock).mock.calls[0][0].html;
-        // Watermark
-        expect(calledHtml).toContain('sample-watermark');
         // Landscape
         expect(calledHtml).toContain('min-width: 1130px');
         // Single-page enforcement
@@ -519,12 +460,10 @@ describe('pdfGenerationService', () => {
        * PDF generation should work in read-only mode because:
        * 1. It only reads document data (not blocked by read-only mode)
        * 2. It writes to file system (not AsyncStorage)
-       * 3. Pro status check reads from SecureStore (not blocked)
        */
 
-      it('generates PDF successfully when Pro and read-only mode enabled', async () => {
-        // Enable Pro status and read-only mode
-        setProStatusOverride(true);
+      it('generates PDF successfully when read-only mode enabled', async () => {
+        // Enable read-only mode
         setReadOnlyMode(true);
 
         // Mock successful PDF generation and sharing
@@ -544,8 +483,7 @@ describe('pdfGenerationService', () => {
       });
 
       it('does not write to AsyncStorage during PDF generation', async () => {
-        // Enable Pro status and read-only mode
-        setProStatusOverride(true);
+        // Enable read-only mode
         setReadOnlyMode(true);
 
         // Mock successful PDF generation

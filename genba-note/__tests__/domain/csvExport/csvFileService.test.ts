@@ -9,29 +9,6 @@
 const mockFileWrite = jest.fn();
 const mockFileDelete = jest.fn();
 
-// Mock react-native-purchases (required by subscription service)
-jest.mock('react-native-purchases', () => ({
-  __esModule: true,
-  default: {
-    configure: jest.fn(),
-    getCustomerInfo: jest.fn(),
-    restorePurchases: jest.fn(),
-  },
-}));
-
-// Mock expo-secure-store (required by subscription service)
-jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(),
-  setItemAsync: jest.fn(),
-  deleteItemAsync: jest.fn(),
-}));
-
-// Mock react-native-device-info (required by uptime service)
-jest.mock('react-native-device-info', () => ({
-  __esModule: true,
-  getStartupTime: jest.fn(),
-}));
-
 // Mock @react-native-async-storage/async-storage
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
@@ -67,10 +44,6 @@ import * as Sharing from 'expo-sharing';
 import * as asyncStorageService from '@/storage/asyncStorageService';
 import { setReadOnlyMode } from '@/storage/asyncStorageService';
 import { exportInvoicesToCsv } from '@/domain/csvExport/csvFileService';
-import {
-  setProStatusOverride,
-  resetProStatusOverride,
-} from '@/subscription/proAccessService';
 import { createSentInvoice, createPaidInvoice, createDraftInvoice } from './helpers';
 
 const mockedAsyncStorage = jest.mocked(asyncStorageService);
@@ -78,59 +51,17 @@ const mockedAsyncStorage = jest.mocked(asyncStorageService);
 describe('csvFileService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    resetProStatusOverride();
     setReadOnlyMode(false);
     mockFileWrite.mockResolvedValue(undefined);
     mockFileDelete.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
-    resetProStatusOverride();
     setReadOnlyMode(false);
   });
 
   describe('exportInvoicesToCsv', () => {
-    describe('Pro status enforcement', () => {
-      it('returns PRO_REQUIRED error when not Pro', async () => {
-        setProStatusOverride(false);
-
-        const result = await exportInvoicesToCsv({
-          periodType: 'this-month',
-          referenceDate: '2026-01-15',
-        });
-
-        expect(result.success).toBe(false);
-        expect(result.error?.code).toBe('PRO_REQUIRED');
-        expect(result.error?.message).toContain('Pro subscription');
-        expect(mockedAsyncStorage.filterDocuments).not.toHaveBeenCalled();
-      });
-
-      it('proceeds with export when Pro', async () => {
-        setProStatusOverride(true);
-
-        const invoices = [createSentInvoice('2026-01-10')];
-        mockedAsyncStorage.filterDocuments.mockResolvedValue({
-          success: true,
-          data: invoices,
-        });
-        (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(true);
-        (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
-
-        const result = await exportInvoicesToCsv({
-          periodType: 'this-month',
-          referenceDate: '2026-01-15',
-        });
-
-        expect(result.success).toBe(true);
-        expect(mockedAsyncStorage.filterDocuments).toHaveBeenCalled();
-      });
-    });
-
     describe('storage error handling', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
       it('returns STORAGE_ERROR when filterDocuments fails', async () => {
         mockedAsyncStorage.filterDocuments.mockResolvedValue({
           success: false,
@@ -148,10 +79,6 @@ describe('csvFileService', () => {
     });
 
     describe('no data handling', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
       it('returns NO_DATA when no invoices match filter', async () => {
         // Return invoices outside the period
         const invoices = [createSentInvoice('2025-12-01')];
@@ -203,10 +130,6 @@ describe('csvFileService', () => {
     });
 
     describe('file write error handling', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
       it('returns FILE_WRITE_ERROR when file.write fails', async () => {
         const invoices = [createSentInvoice('2026-01-10')];
         mockedAsyncStorage.filterDocuments.mockResolvedValue({
@@ -227,10 +150,6 @@ describe('csvFileService', () => {
     });
 
     describe('sharing error handling', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
       it('returns SHARE_FAILED when sharing not available', async () => {
         const invoices = [createSentInvoice('2026-01-10')];
         mockedAsyncStorage.filterDocuments.mockResolvedValue({
@@ -291,10 +210,6 @@ describe('csvFileService', () => {
     });
 
     describe('successful export flow', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
       it('exports invoices and returns rowCount', async () => {
         const invoices = [
           createSentInvoice('2026-01-10'),
@@ -397,10 +312,6 @@ describe('csvFileService', () => {
     });
 
     describe('filter parameters', () => {
-      beforeEach(() => {
-        setProStatusOverride(true);
-      });
-
       it('passes correct filter to asyncStorageService', async () => {
         mockedAsyncStorage.filterDocuments.mockResolvedValue({
           success: true,
@@ -424,12 +335,10 @@ describe('csvFileService', () => {
        * CSV export should work in read-only mode because:
        * 1. filterDocuments is a read operation (not blocked)
        * 2. File writes go to file system cache (not AsyncStorage)
-       * 3. Pro status check reads from SecureStore (not blocked)
        */
 
-      it('exports CSV successfully when Pro and read-only mode enabled', async () => {
-        // Enable Pro status and read-only mode
-        setProStatusOverride(true);
+      it('exports CSV successfully when read-only mode enabled', async () => {
+        // Enable read-only mode
         setReadOnlyMode(true);
 
         // Mock documents
@@ -454,8 +363,7 @@ describe('csvFileService', () => {
       });
 
       it('uses filterDocuments (read operation) not saveDocument', async () => {
-        // Enable Pro status and read-only mode
-        setProStatusOverride(true);
+        // Enable read-only mode
         setReadOnlyMode(true);
 
         const invoices = [createSentInvoice('2026-01-10')];

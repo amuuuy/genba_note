@@ -9,8 +9,26 @@ export default function DataHandlingScreen() {
 
         <Text style={styles.sectionTitle}>データの保存先</Text>
         <Text style={styles.body}>
-          本アプリのデータは端末内のローカルストレージに保存されます。
-          外部サーバーへの送信機能はありません。
+          本アプリで作成した書類・顧客・写真などのデータは、
+          すべて端末内のローカルストレージに保存されます。
+          業務データが開発者のサーバーや外部サービスに送信されることはありません。
+        </Text>
+
+        <Text style={styles.sectionTitle}>保存場所の詳細</Text>
+        <Text style={styles.body}>
+          ・通常ストレージ（AsyncStorage）: 書類・顧客・単価・収支・予定などの業務データ、
+          発行者情報（会社名・住所・電話番号・メール等）、アプリ設定、画像の URI/メタデータ{'\n'}
+          ・セキュアストレージ（SecureStore: iOS Keychain / Android Keystore）:
+          適格請求書発行事業者番号と銀行口座情報のみを暗号化して保存{'\n'}
+          ・アプリ専用ディレクトリ: 印影画像・背景画像・顧客写真・領収書写真などの画像ファイル本体
+        </Text>
+
+        <Text style={styles.sectionTitle}>エラーレポートについて</Text>
+        <Text style={styles.body}>
+          アプリで予期しないエラーが発生した場合に、
+          匿名化されたエラーレポート（端末情報・エラー内容・スタックトレース）が
+          品質改善のため外部サービス（Sentry）に送信されます。
+          個人を特定できる情報や業務データは含まれません。
         </Text>
 
         <Text style={styles.sectionTitle}>バックアップについて</Text>
@@ -21,8 +39,11 @@ export default function DataHandlingScreen() {
 
         <Text style={styles.sectionTitle}>機密情報の扱い</Text>
         <Text style={styles.body}>
-          銀行口座情報等の機密データは、
-          端末のセキュアストレージ（expo-secure-store）を使用して保護されます。
+          適格請求書発行事業者番号と銀行口座情報のみ、
+          端末のセキュアストレージ（expo-secure-store: iOS Keychain / Android Keystore）を
+          使用して暗号化保護されます。具体的には、(1) 現在の発行者設定値と
+          (2) 各見積書・請求書を作成した時点のスナップショット の2種類が保持されます。
+          書類を削除すると、対応するスナップショットも自動的に削除されます。
         </Text>
 
         <Pressable style={styles.closeButton} onPress={() => router.back()}>

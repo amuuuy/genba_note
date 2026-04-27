@@ -1,14 +1,10 @@
 /**
  * Settings Legal Links Wiring Tests
  *
- * Verifies that the settings screen imports and uses the same
+ * Verifies that the settings screen imports and uses the
  * openTermsOfService / openPrivacyPolicy handlers from legalLinkHandlers.
  * Full rendering is not possible in node test environment, so we verify
  * the import wiring by reading the source and confirming the binding.
- *
- * The handler functions themselves are already tested in
- * paywall-legal-links.test.ts. This test ensures the settings screen
- * references the correct shared utilities.
  */
 
 import * as fs from 'fs';

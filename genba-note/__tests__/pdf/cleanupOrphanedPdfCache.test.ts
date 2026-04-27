@@ -16,29 +16,6 @@ jest.mock('expo-sharing', () => ({
   shareAsync: jest.fn(),
 }));
 
-// Mock react-native-purchases (required by subscription service)
-jest.mock('react-native-purchases', () => ({
-  __esModule: true,
-  default: {
-    configure: jest.fn(),
-    getCustomerInfo: jest.fn(),
-    restorePurchases: jest.fn(),
-  },
-}));
-
-// Mock expo-secure-store (required by subscription service)
-jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(),
-  setItemAsync: jest.fn(),
-  deleteItemAsync: jest.fn(),
-}));
-
-// Mock react-native-device-info (required by uptime service)
-jest.mock('react-native-device-info', () => ({
-  __esModule: true,
-  getStartupTime: jest.fn(),
-}));
-
 import { File, Directory } from 'expo-file-system';
 import { cleanupOrphanedPdfCache } from '@/pdf/pdfGenerationService';
 

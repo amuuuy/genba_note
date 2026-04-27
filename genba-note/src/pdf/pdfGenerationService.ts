@@ -3,9 +3,6 @@
  *
  * Integrates expo-print and expo-sharing for PDF generation and sharing.
  * Follows SPEC 2.7 for PDF output specifications.
- *
- * Free users: PDF generated with "SAMPLE" watermark overlay.
- * Pro users: PDF generated without watermark.
  */
 
 import * as Print from 'expo-print';
@@ -16,23 +13,12 @@ import type { PdfTemplateInput, PdfGenerationResult, PdfGenerationOptions, Previ
 import { DEFAULT_SEAL_SIZE } from './types';
 import { generateHtmlTemplate, generateFilenameTitle, injectLandscapeCss } from './pdfTemplateService';
 import { sanitizeFilename } from '@/utils/filenameUtils';
-import { checkProStatus } from '@/subscription/proAccessService';
 import { resolveTemplateForUser } from '@/constants/templateOptions';
 import { validateDocumentForPdf, formatValidationError } from './pdfValidationService';
 import { getSettings } from '@/storage/asyncStorageService';
 import { resolveBackgroundImageDataUrl } from '@/utils/imageUtils';
-import { injectSampleWatermark } from './watermarkService';
 import { injectSinglePageEnforcement } from './singlePageService';
 
-/**
- * Generate PDF from HTML (internal function)
- *
- * SECURITY: This function is NOT exported to enforce Pro gating.
- * All PDF generation must go through generateAndSharePdf.
- *
- * @param html - HTML content to convert to PDF
- * @returns PdfGenerationResult with fileUri on success
- */
 async function generatePdf(html: string, orientation?: PreviewOrientation): Promise<PdfGenerationResult> {
   try {
     const printOptions: { html: string; base64: boolean; width?: number; height?: number } = {
@@ -64,15 +50,6 @@ async function generatePdf(html: string, orientation?: PreviewOrientation): Prom
   }
 }
 
-/**
- * Share PDF file (internal function)
- *
- * SECURITY: This function is NOT exported to enforce Pro gating.
- * All PDF sharing must go through generateAndSharePdf.
- *
- * @param fileUri - File URI of the PDF to share
- * @returns PdfGenerationResult
- */
 async function sharePdf(fileUri: string): Promise<PdfGenerationResult> {
   try {
     const isAvailable = await Sharing.isAvailableAsync();
@@ -147,10 +124,7 @@ function cleanupPdfFile(fileUri: string): void {
 }
 
 /**
- * Generate HTML template, create PDF, and share
- *
- * Free users: PDF is generated with a "SAMPLE" watermark overlay.
- * Pro users: PDF is generated without watermark.
+ * Generate HTML template, create PDF, and share.
  *
  * NOTE: PDF output always uses formal monochrome theme ('pdf' mode).
  * The 'mode' property in input is ignored; formal theme is enforced for
@@ -163,11 +137,7 @@ export async function generateAndSharePdf(
   input: Omit<PdfTemplateInput, 'mode'>,
   options?: PdfGenerationOptions
 ): Promise<PdfGenerationResult> {
-  // 1. Check Pro status (for watermark decision)
-  const proResult = await checkProStatus();
-  const isPro = proResult.isPro;
-
-  // 2. Validate required fields for PDF generation
+  // 1. Validate required fields for PDF generation
   const validationResult = validateDocumentForPdf(input.document);
   if (!validationResult.isValid) {
     return {
@@ -179,15 +149,14 @@ export async function generateAndSharePdf(
     };
   }
 
-  // 2.5. Load settings to get template preference, seal size, background design
+  // 2. Load settings to get template preference, seal size, background design
   const settingsResult = await getSettings();
   const settings = settingsResult.success ? settingsResult.data : null;
 
-  // M21: Select template based on document type, enforcing Pro gating at service layer
   const rawTemplateId = input.document.type === 'estimate'
     ? settings?.defaultEstimateTemplateId ?? 'FORMAL_STANDARD'
     : settings?.defaultInvoiceTemplateId ?? 'ACCOUNTING';
-  const templateId = resolveTemplateForUser(input.document.type, rawTemplateId, isPro);
+  const templateId = resolveTemplateForUser(input.document.type, rawTemplateId);
   const sealSize = settings?.sealSize ?? DEFAULT_SEAL_SIZE;
   const backgroundDesign = settings?.backgroundDesign ?? 'NONE';
 
@@ -206,11 +175,6 @@ export async function generateAndSharePdf(
     backgroundDesign,
     backgroundImageDataUrl,
   });
-
-  // 3.5. Inject SAMPLE watermark for free users
-  if (!isPro) {
-    html = injectSampleWatermark(html);
-  }
 
   // 3.6. Inject landscape CSS if orientation is LANDSCAPE
   if (options?.orientation === 'LANDSCAPE') {

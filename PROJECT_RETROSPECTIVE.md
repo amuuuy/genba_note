@@ -1,5 +1,12 @@
 # プロジェクト行動記録 — 「ポチッと事務」(GenBa Note)
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 リリース準備期間（2026-02-01〜2026-03-26）の振り返り記録です。
+> v1.0.1 で M1 Pivot により Pro/RevenueCat/Supabase/materialResearch/OTA を全廃止したため、末尾の未完了チェックリスト等に旧 Free/Pro・Supabase・RevenueCat 前提の記述があります。これらは **OBSOLETE** です。
+> 本ファイルは振り返り記録（履歴文書）です。新タスクとして実行しないでください。
+> v1.0.1 以降の現行アーキテクチャは [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) と [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) を正本としてください。
+>
+> ---
+
 > **目的**: 次回のモバイルアプリ制作で同じ試行錯誤を繰り返さないための振り返り記録
 > **期間**: 2026-02-01 〜 2026-03-26（約2ヶ月）
 > **リポジトリ**: https://github.com/amuuuy/genba_note

@@ -3,7 +3,6 @@
  *
  * Form section for per-document-type PDF template selection (M21).
  * Two radio groups: estimate template (6 options) + invoice template (6 options).
- * Pro templates are shown with a PRO badge and disabled for free users.
  */
 
 import React from 'react';
@@ -23,41 +22,36 @@ export interface TemplateSelectionSectionProps {
   onInvoiceChange: (value: DocumentTemplateId) => void;
   /** Whether selection is disabled (e.g. during save) */
   disabled?: boolean;
-  /** Whether the user has Pro access (defaults to false) */
-  isPro?: boolean;
 }
 
 function TemplateRadioGroup({
   value,
   onChange,
   disabled,
-  isPro,
   testIDPrefix,
 }: {
   value: DocumentTemplateId;
   onChange: (value: DocumentTemplateId) => void;
   disabled: boolean;
-  isPro: boolean;
   testIDPrefix: string;
 }) {
-  const selectableOptions = getSelectableTemplateOptions(isPro);
+  const selectableOptions = getSelectableTemplateOptions();
 
   return (
     <>
       {selectableOptions.map((option) => {
         const isSelected = value === option.value;
-        const isOptionDisabled = disabled || option.disabled;
         return (
           <Pressable
             key={option.value}
             style={[
               styles.optionRow,
               isSelected && styles.optionRowSelected,
-              isOptionDisabled && styles.optionRowDisabled,
+              disabled && styles.optionRowDisabled,
             ]}
-            onPress={() => !isOptionDisabled && onChange(option.value)}
+            onPress={() => !disabled && onChange(option.value)}
             testID={`${testIDPrefix}-${option.value.toLowerCase()}`}
-            disabled={isOptionDisabled}
+            disabled={disabled}
           >
             <View style={styles.radioOuter}>
               {isSelected && <View style={styles.radioInner} />}
@@ -65,20 +59,15 @@ function TemplateRadioGroup({
             <View style={styles.optionContent}>
               <View style={styles.labelRow}>
                 <Text
-                  style={[styles.optionLabel, isOptionDisabled && styles.optionLabelDisabled]}
+                  style={[styles.optionLabel, disabled && styles.optionLabelDisabled]}
                 >
                   {option.label}
                 </Text>
-                {option.requiresPro && (
-                  <View style={styles.proBadge}>
-                    <Text style={styles.proBadgeText}>PRO</Text>
-                  </View>
-                )}
               </View>
               <Text
                 style={[
                   styles.optionDescription,
-                  isOptionDisabled && styles.optionDescriptionDisabled,
+                  disabled && styles.optionDescriptionDisabled,
                 ]}
               >
                 {option.description}
@@ -100,7 +89,6 @@ export const TemplateSelectionSection: React.FC<TemplateSelectionSectionProps> =
   onEstimateChange,
   onInvoiceChange,
   disabled = false,
-  isPro = false,
 }) => {
   return (
     <>
@@ -109,7 +97,6 @@ export const TemplateSelectionSection: React.FC<TemplateSelectionSectionProps> =
           value={estimateTemplateId}
           onChange={onEstimateChange}
           disabled={disabled}
-          isPro={isPro}
           testIDPrefix="estimate-template"
         />
       </FormSection>
@@ -118,7 +105,6 @@ export const TemplateSelectionSection: React.FC<TemplateSelectionSectionProps> =
           value={invoiceTemplateId}
           onChange={onInvoiceChange}
           disabled={disabled}
-          isPro={isPro}
           testIDPrefix="invoice-template"
         />
       </FormSection>
@@ -188,16 +174,5 @@ const styles = StyleSheet.create({
   },
   optionDescriptionDisabled: {
     color: '#AEAEB2',
-  },
-  proBadge: {
-    backgroundColor: '#FF9500',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  proBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

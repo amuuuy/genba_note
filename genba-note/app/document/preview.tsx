@@ -1,8 +1,7 @@
 /**
  * Document Preview Screen
  *
- * Displays HTML preview of documents (FREE for all users).
- * PDF generation and sharing is PRO only.
+ * Displays HTML preview of documents and provides PDF share.
  *
  * Flow:
  * 1. Load document from storage OR parse from previewData parameter
@@ -11,7 +10,7 @@
  * 4. Create document with resolved issuer info
  * 5. Generate HTML template
  * 6. Display in WebView
- * 7. On PDF share: check Pro status → generate/share or redirect to paywall
+ * 7. On PDF share: generate and share the PDF
  *
  * Preview Mode:
  * - If `previewData` param is provided, preview unsaved document data
@@ -29,7 +28,6 @@ import { enrichDocumentWithTotals } from '@/domain/lineItem/calculationService';
 import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
 // Import template service directly to avoid bundling expo-print/sharing dependencies in preview
 import { generateHtmlTemplate, generateFilenameTitle, deriveDisplayHtml, toggleOrientation } from '@/pdf/pdfTemplateService';
-// Import PDF generation service for Pro feature
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { getSettings } from '@/storage/asyncStorageService';
 import { resolveBackgroundImageDataUrl } from '@/utils/imageUtils';
@@ -38,7 +36,6 @@ import { TemplatePickerModal } from '@/components/document/TemplatePickerModal';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { validatePreviewDocument } from '@/utils/previewDataValidator';
 import { injectCsp, FIT_TO_SCREEN_SCRIPT } from '@/utils/previewHtmlSecurity';
-import { useProStatus } from '@/hooks/useProStatus';
 import { resolveTemplateForUser } from '@/constants/templateOptions';
 import type { Document, DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
 import type { DocumentTemplateId, PreviewOrientation, SealSize, BackgroundDesign } from '@/types/settings';
@@ -54,7 +51,6 @@ export default function DocumentPreviewScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const { isPro, isLoading: isProLoading } = useProStatus();
   const [orientation, setOrientation] = useState<PreviewOrientation>('PORTRAIT');
   const [filenameModalVisible, setFilenameModalVisible] = useState(false);
   const [currentTemplateId, setCurrentTemplateId] = useState<DocumentTemplateId>('FORMAL_STANDARD');
@@ -75,12 +71,7 @@ export default function DocumentPreviewScreen() {
   }, [documentWithTotals]);
 
   // Load document and generate HTML preview.
-  // Waits for Pro status to resolve before starting, to avoid race conditions
-  // where initial isPro=false would resolve Pro templates to free defaults.
   useEffect(() => {
-    // Don't start loading until Pro status is resolved
-    if (isProLoading) return;
-
     let stale = false;
 
     async function loadPreview() {
@@ -148,7 +139,7 @@ export default function DocumentPreviewScreen() {
         const rawTemplateId = documentForTemplate.type === 'estimate'
           ? settings?.defaultEstimateTemplateId ?? 'FORMAL_STANDARD'
           : settings?.defaultInvoiceTemplateId ?? 'ACCOUNTING';
-        const templateId = resolveTemplateForUser(documentForTemplate.type, rawTemplateId, isPro);
+        const templateId = resolveTemplateForUser(documentForTemplate.type, rawTemplateId);
 
         // 5.5. Pre-load background image if IMAGE design is selected
         const backgroundDesign = settings?.backgroundDesign;
@@ -180,7 +171,7 @@ export default function DocumentPreviewScreen() {
     loadPreview();
 
     return () => { stale = true; };
-  }, [id, previewData, isPro, isProLoading]);
+  }, [id, previewData]);
 
   // Compute HTML for WebView display, applying landscape CSS when needed.
   // Defence-in-depth: inject CSP to block inline scripts/event handlers in HTML.
@@ -251,10 +242,6 @@ export default function DocumentPreviewScreen() {
       );
 
       if (!result.success && result.error) {
-        if (result.error.code === 'PRO_REQUIRED') {
-          router.push('/paywall');
-          return;
-        }
         if (result.error.code === 'SHARE_CANCELLED') {
           return;
         }
@@ -385,7 +372,7 @@ export default function DocumentPreviewScreen() {
             {isGenerating ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.shareButtonText}>PDFで共有【Pro】</Text>
+              <Text style={styles.shareButtonText}>PDFで共有</Text>
             )}
           </Pressable>
         )}
@@ -414,7 +401,6 @@ export default function DocumentPreviewScreen() {
         onClose={() => setTemplatePickerVisible(false)}
         currentSealSize={templateDeps.sealSize}
         onSealSizeSelect={handleSealSizeSelect}
-        isPro={isPro}
         testID="template-picker-modal"
       />
     </View>

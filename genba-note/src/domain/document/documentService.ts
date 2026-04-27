@@ -26,7 +26,6 @@ import { executeTransition, canTransition } from './statusTransitionService';
 import { generateDocumentNumber } from './autoNumberingService';
 import {
   getDocumentById,
-  getAllDocuments,
   saveDocument,
   deleteDocument,
   filterDocuments,
@@ -38,7 +37,6 @@ import {
 } from '@/storage/secureStorageService';
 import { generateUUID } from '@/utils/uuid';
 import { getTodayString } from '@/utils/dateUtils';
-import { canCreateDocument as checkFreeTierLimit } from '@/subscription/freeTierLimitsService';
 
 // === Input Types ===
 
@@ -77,51 +75,13 @@ export interface UpdateDocumentInput {
 
 /**
  * Options for document creation operations.
- * isPro defaults to false (fail-closed: treats user as free-tier).
  */
 export interface CreateDocumentOptions {
   /** Today's date override for testing */
   today?: string;
-  /** Whether the user has Pro access. Defaults to false (fail-closed). */
-  isPro?: boolean;
 }
 
 // === Helper Functions ===
-
-/**
- * Enforce free-tier document creation limit.
- * Returns null if allowed, or an error result if blocked.
- * Pro users bypass the check entirely.
- * Free-tier users with document list read failure are fail-closed (blocked).
- *
- * Counts active (existing) documents, not cumulative creations.
- * Deleting documents frees up quota for free users.
- */
-export async function enforceDocumentCreationLimit(
-  isPro: boolean
-): Promise<DomainResult<never, DocumentServiceError> | null> {
-  if (isPro) return null;
-
-  const docsResult = await getAllDocuments();
-  if (!docsResult.success) {
-    return errorResult(
-      createDocumentServiceError(
-        'FREE_TIER_LIMIT_EXCEEDED',
-        'Failed to verify document creation limit'
-      )
-    );
-  }
-  const check = checkFreeTierLimit(docsResult.data!.length, false);
-  if (!check.allowed) {
-    return errorResult(
-      createDocumentServiceError(
-        'FREE_TIER_LIMIT_EXCEEDED',
-        `Free tier document limit reached (${check.current}/${check.limit})`
-      )
-    );
-  }
-  return null;
-}
 
 /**
  * Generate UUIDs for line items
@@ -213,7 +173,7 @@ async function saveSensitiveSnapshot(
  * Create a new document
  *
  * @param input - Document creation input
- * @param options - Optional options (today override, isPro flag)
+ * @param options - Optional options (today override)
  * @returns Result containing created document
  */
 export async function createDocument(
@@ -221,11 +181,6 @@ export async function createDocument(
   options?: CreateDocumentOptions
 ): Promise<DomainResult<Document, DocumentServiceError>> {
   const todayDate = options?.today ?? getTodayString();
-  const isPro = options?.isPro ?? false;
-
-  // Free-tier limit guard (before numbering to avoid wasting a number)
-  const limitError = await enforceDocumentCreationLimit(isPro);
-  if (limitError) return limitError;
 
   // Generate document number
   const numberResult = await generateDocumentNumber(input.type);
@@ -559,7 +514,7 @@ export async function deleteDocumentById(
  * Duplicate a document with new ID and number
  *
  * @param id - Source document ID
- * @param options - Optional options (today override, isPro flag)
+ * @param options - Optional options (today override)
  * @returns Result containing duplicated document
  */
 export async function duplicateDocument(
@@ -567,11 +522,6 @@ export async function duplicateDocument(
   options?: CreateDocumentOptions
 ): Promise<DomainResult<Document, DocumentServiceError>> {
   const todayDate = options?.today ?? getTodayString();
-  const isPro = options?.isPro ?? false;
-
-  // Free-tier limit guard
-  const limitError = await enforceDocumentCreationLimit(isPro);
-  if (limitError) return limitError;
 
   // Get source document
   const existingResult = await getDocumentById(id);

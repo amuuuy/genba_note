@@ -43,8 +43,7 @@ export type CsvExportErrorCode =
   | 'NO_DATA' // No invoices match the filter
   | 'FILE_WRITE_ERROR' // Failed to write CSV file
   | 'SHARE_CANCELLED' // User cancelled sharing
-  | 'SHARE_FAILED' // Sharing failed
-  | 'PRO_REQUIRED'; // Pro subscription required
+  | 'SHARE_FAILED'; // Sharing failed
 
 // === Error Interface ===
 

@@ -1,5 +1,20 @@
 # GenBa Note 本番リリース前 問題点リスト
 
+> ⚠️ **重要 (2026-04-26 更新)**: 本ファイルは v1.0.0 リリース前の問題点リストです。
+> v1.0.1 で M1 Pivot により以下を **全廃止** したため、関連する CRITICAL / 高優先度項目および MS4/MS5 の release gate（課金フロー・復元フロー・資材検索フロー・RevenueCat/Rakuten/Gemini 設定確認等）は旧前提として参考扱いとします:
+> - **アプリ内課金 / Pro サブスクリプション / RevenueCat**
+> - **Supabase 匿名認証 / Edge Functions**
+> - **AI資材検索 / 楽天検索 / Google Gemini API（materialResearch ドメイン）**
+> - **expo-updates OTA**（MS7 #1 — Option A 採択で無効化）
+>
+> v1.0.1 の release gate は: (1) ローカル機能の実機回帰確認、(2) Sentry エラーレポート受信確認、(3) 公開ドキュメント（privacy / terms / store metadata）の整合確認 の3点に縮小されています。
+> 詳細は [`M1_V1_0_1_RELEASE_FIXES.md`](M1_V1_0_1_RELEASE_FIXES.md) および [`PIVOT_PLAN_v2.md`](PIVOT_PLAN_v2.md) を参照してください。
+> 本ファイルは v1.0.0 当時の問題点記録として履歴目的で保持しています。
+>
+> 注: パス基準も Edge Functions（`supabase/...`）は v1.0.1 で削除済み。
+>
+> ---
+
 > 作成日: 2026-02-22
 > テスト: 2478/2478 通過 | TypeScript: エラー 0件
 > パス基準: リポジトリルート相対（`genba-note/...` = アプリコード、`supabase/...` = Edge Functions）
@@ -357,7 +372,7 @@
 
 | # | 内容 | 依存 | 規模 |
 |---|------|------|------|
-| 1 | OTA アップデート基盤（expo-updates） | — | S |
+| ~~1~~ | ~~OTA アップデート基盤（expo-updates）~~ ⚠️ OBSOLETE: M1/C13 で廃止（M1_V1_0_1_RELEASE_FIXES.md B7） | — | — |
 | 2 | 本番ビルド（iOS / Android） | MS5, MS6 | M |
 | 3 | サンドボックス課金テスト | MS5 | M |
 | 4 | TestFlight / 内部テスト配信 + 実機フルフロー確認 | #2, #3 | M |

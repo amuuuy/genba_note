@@ -1,6 +1,6 @@
 {
   "name": "genba-note",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -10,8 +10,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "update:preview": "eas update --channel preview --environment staging --platform all --auto",
-    "update:production": "eas update --channel production --environment production --platform all --auto",
     "lint": "expo lint"
   },
   "dependencies": {
@@ -20,7 +18,6 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "^8.4.4",
     "@sentry/react-native": "~7.2.0",
-    "@supabase/supabase-js": "^2.97.0",
     "expo": "~54.0.32",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
@@ -37,10 +34,8 @@
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1314.0",
     "react-native-chart-kit": "^6.12.0",
-    "react-native-device-info": "^15.0.1",
     "react-native-gesture-handler": "^2.30.0",
     "react-native-modal-datetime-picker": "^18.0.0",
-    "react-native-purchases": "^9.7.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",

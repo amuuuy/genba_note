@@ -28,9 +28,6 @@ export type {
 } from './useDocumentList';
 export { enrichDocumentsWithTotals, createDeleteHandler } from './useDocumentList';
 
-export { useProStatus } from './useProStatus';
-export type { UseProStatusReturn } from './useProStatus';
-
 export { useUnitPricePicker, extractCategories } from './useUnitPricePicker';
 export type {
   UnitPricePickerState,
@@ -59,6 +56,3 @@ export type { UseFinanceChartReturn } from './useFinanceChart';
 
 export { useKanbanBoard, resolveHandleDrop } from './useKanbanBoard';
 export type { UseKanbanBoardReturn, HandleDropResult } from './useKanbanBoard';
-
-export { useAiPriceSearch } from './useAiPriceSearch';
-export type { UseAiPriceSearchReturn } from './useAiPriceSearch';

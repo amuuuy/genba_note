@@ -8,22 +8,15 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "development",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
-      "distribution": "internal",
-      "channel": "preview",
-      "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging"
-      }
+      "distribution": "internal"
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }

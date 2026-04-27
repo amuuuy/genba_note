@@ -1,8 +1,7 @@
 /**
  * CSV Export Module
  *
- * Public exports for CSV export functionality.
- * Per SPEC 2.6.6, CSV export is a Pro-only feature.
+ * Public exports for CSV export functionality (SPEC 2.6.6).
  */
 
 // Types
@@ -33,5 +32,5 @@ export {
   generateCsvFromDocuments,
 } from './csvExportService';
 
-// Main entry point (async, with Pro gating)
+// Main entry point (async)
 export { exportInvoicesToCsv } from './csvFileService';

@@ -20,7 +20,6 @@ import { Link } from 'expo-router';
 import { openTermsOfService, openPrivacyPolicy } from '@/utils/legalLinkHandlers';
 import { useSettingsEdit } from '@/hooks/useSettingsEdit';
 import { useReadOnlyMode } from '@/hooks/useReadOnlyMode';
-import { useProStatus } from '@/hooks/useProStatus';
 import {
   IssuerInfoSection,
   BankAccountSection,
@@ -50,7 +49,6 @@ export default function SettingsScreen() {
 
   // Read-only mode state
   const { isReadOnlyMode } = useReadOnlyMode();
-  const { isPro } = useProStatus();
 
   // Form is disabled when saving or in read-only mode
   const isFormDisabled = state.isSaving || isReadOnlyMode;
@@ -179,7 +177,6 @@ export default function SettingsScreen() {
           onEstimateChange={updateDefaultEstimateTemplateId}
           onInvoiceChange={updateDefaultInvoiceTemplateId}
           disabled={isFormDisabled}
-          isPro={isPro}
         />
 
         {/* Save Button */}
@@ -199,12 +196,6 @@ export default function SettingsScreen() {
 
         {/* Links Section */}
         <View style={styles.linkContainer}>
-          <Link href="/paywall" asChild>
-            <Pressable style={styles.link}>
-              <Text style={styles.linkText}>Proプランを見る</Text>
-            </Pressable>
-          </Link>
-
           <Link href="/data-handling" asChild>
             <Pressable style={styles.link}>
               <Text style={styles.linkText}>データ取扱説明</Text>
