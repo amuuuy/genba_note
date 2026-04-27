@@ -29,10 +29,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.kenjimu.genbanote",
-      "versionCode": 10,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "versionCode": 10
     },
     "web": {
       "favicon": "./assets/favicon.png"
