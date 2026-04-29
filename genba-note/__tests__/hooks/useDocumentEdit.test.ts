@@ -328,6 +328,7 @@ describe('useDocumentEdit', () => {
         },
         lineItems: [createValidLineItem()],
         issuerSnapshot: null,
+        blockPlacements: null,
         errors: {},
         isLoading: false,
         isSaving: false,
@@ -366,6 +367,7 @@ describe('useDocumentEdit', () => {
       },
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      blockPlacements: null,
     };
 
     beforeEach(() => {

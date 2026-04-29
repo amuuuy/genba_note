@@ -1,12 +1,12 @@
 /**
- * Tests for v1→v9 full chain migration
+ * Tests for v1→v10 full chain migration
  *
- * Integration test that verifies the complete migration chain from v0/v1 to v9.
+ * Integration test that verifies the complete migration chain from v0/v1 to v10.
  * Uses a map-based AsyncStorage mock so setItem updates what getItem returns.
  *
  * Two scenarios:
- * 1. Fresh install (v0→v9): empty store, v1 initializes defaults
- * 2. Existing data (v1→v9): pre-existing documents/settings/photos
+ * 1. Fresh install (v0→v10): empty store, v1 initializes defaults
+ * 2. Existing data (v1→v10): pre-existing documents/settings/photos
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +27,7 @@ import { v6RemoveUndatedPhotosMigration } from '@/storage/migrations/v6-remove-u
 import { v7AddPdfCustomizationMigration } from '@/storage/migrations/v7-add-pdf-customization';
 import { v8AddCalendarEventsMigration } from '@/storage/migrations/v8-add-calendar-events';
 import { v9AddEmailFieldMigration } from '@/storage/migrations/v9-add-email-field';
+import { v10AddBlockPlacementsMigration } from '@/storage/migrations/v10-add-block-placements';
 
 // Map-based AsyncStorage mock
 const store: Record<string, string> = {};
@@ -88,9 +89,10 @@ function registerAllMigrations() {
   registerMigration(v7AddPdfCustomizationMigration);
   registerMigration(v8AddCalendarEventsMigration);
   registerMigration(v9AddEmailFieldMigration);
+  registerMigration(v10AddBlockPlacementsMigration);
 }
 
-describe('v1→v9 chain migration', () => {
+describe('v1→v10 chain migration', () => {
   beforeEach(() => {
     // Clear store
     Object.keys(store).forEach((key) => delete store[key]);
@@ -104,27 +106,27 @@ describe('v1→v9 chain migration', () => {
     jest.clearAllMocks();
   });
 
-  it('should have CURRENT_SCHEMA_VERSION = 9', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(9);
+  it('should have CURRENT_SCHEMA_VERSION = 10', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(10);
   });
 
-  describe('fresh install (v0→v9)', () => {
-    it('should migrate from v0 to v9 successfully', async () => {
+  describe('fresh install (v0→v10)', () => {
+    it('should migrate from v0 to v10 successfully', async () => {
       // Empty store — v0 state
       const result = await runMigrations();
 
       expect(result.success).toBe(true);
       expect(result.startVersion).toBe(0);
-      expect(result.endVersion).toBe(9);
-      expect(result.migrationsRun).toBe(9);
+      expect(result.endVersion).toBe(10);
+      expect(result.migrationsRun).toBe(10);
       expect(result.readOnlyMode).toBe(false);
     });
 
-    it('should update schema version to 9', async () => {
+    it('should update schema version to 10', async () => {
       await runMigrations();
 
       const version = parseInt(store[STORAGE_KEYS.SCHEMA_VERSION], 10);
-      expect(version).toBe(9);
+      expect(version).toBe(10);
     });
 
     it('should initialize settings with all fields from v1 through v9', async () => {
@@ -241,13 +243,13 @@ describe('v1→v9 chain migration', () => {
       store[STORAGE_KEYS.UNIT_PRICES] = JSON.stringify([]);
     });
 
-    it('should migrate from v1 to v9 successfully', async () => {
+    it('should migrate from v1 to v10 successfully', async () => {
       const result = await runMigrations();
 
       expect(result.success).toBe(true);
       expect(result.startVersion).toBe(1);
-      expect(result.endVersion).toBe(9);
-      expect(result.migrationsRun).toBe(8); // v2 through v9
+      expect(result.endVersion).toBe(10);
+      expect(result.migrationsRun).toBe(9); // v2 through v10
       expect(result.readOnlyMode).toBe(false);
     });
 
@@ -338,11 +340,11 @@ describe('v1→v9 chain migration', () => {
       }
     });
 
-    it('should set final schema version to 9', async () => {
+    it('should set final schema version to 10', async () => {
       await runMigrations();
 
       const version = parseInt(store[STORAGE_KEYS.SCHEMA_VERSION], 10);
-      expect(version).toBe(9);
+      expect(version).toBe(10);
     });
 
     it('should map SIMPLE invoiceTemplateType correctly through chain', async () => {

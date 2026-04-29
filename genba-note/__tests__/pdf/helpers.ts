@@ -130,6 +130,7 @@ export function createTestDocument(
     createdAt: Date.now(),
     updatedAt: Date.now(),
     carriedForwardAmount: null,
+    blockPlacements: null,
     ...overrides,
   };
 }

@@ -68,6 +68,7 @@ export function createTestDocument(overrides?: Partial<Document>): Document {
     issuerSnapshot: createTestIssuerSnapshot(),
     createdAt: now,
     updatedAt: now,
+    blockPlacements: null,
     ...overrides,
   };
 }
@@ -97,6 +98,7 @@ export function createTestInvoice(overrides?: Partial<Document>): Document {
     issuerSnapshot: createTestIssuerSnapshot(),
     createdAt: now,
     updatedAt: now,
+    blockPlacements: null,
     ...overrides,
   };
 }

@@ -1,10 +1,11 @@
 /**
- * Tests for v6→v9 chain migration
+ * Tests for v6→v10 chain migration
  *
- * Integration test that verifies the full migration chain from v6 to v9:
+ * Integration test that verifies the full migration chain from v6 to v10:
  * - v7: Adds PDF customization fields (sealSize, backgroundDesign, template IDs)
  * - v8: Adds CALENDAR_EVENTS storage key (empty array)
  * - v9: Adds email field to issuer snapshot and settings
+ * - v10: Adds blockPlacements field (no-op; normalization at read time)
  *
  * Uses a map-based AsyncStorage mock so setItem updates what getItem returns.
  */
@@ -21,6 +22,7 @@ import {
 import { v7AddPdfCustomizationMigration } from '@/storage/migrations/v7-add-pdf-customization';
 import { v8AddCalendarEventsMigration } from '@/storage/migrations/v8-add-calendar-events';
 import { v9AddEmailFieldMigration } from '@/storage/migrations/v9-add-email-field';
+import { v10AddBlockPlacementsMigration } from '@/storage/migrations/v10-add-block-placements';
 
 // Map-based AsyncStorage mock
 const store: Record<string, string> = {};
@@ -76,7 +78,7 @@ function createV6Settings(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('v6→v9 chain migration', () => {
+describe('v6→v10 chain migration', () => {
   beforeEach(() => {
     // Clear store
     Object.keys(store).forEach((key) => delete store[key]);
@@ -85,19 +87,20 @@ describe('v6→v9 chain migration', () => {
     clearMigrations();
     resetMigrationsInitialized();
 
-    // Register v7, v8, and v9 migrations
+    // Register v7 through v10 migrations
     registerMigration(v7AddPdfCustomizationMigration);
     registerMigration(v8AddCalendarEventsMigration);
     registerMigration(v9AddEmailFieldMigration);
+    registerMigration(v10AddBlockPlacementsMigration);
 
     jest.clearAllMocks();
   });
 
-  it('should have CURRENT_SCHEMA_VERSION = 9', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(9);
+  it('should have CURRENT_SCHEMA_VERSION = 10', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(10);
   });
 
-  it('should migrate from v6 to v9 successfully', async () => {
+  it('should migrate from v6 to v10 successfully', async () => {
     // Set up v6 state
     store[STORAGE_KEYS.SCHEMA_VERSION] = '6';
     store[STORAGE_KEYS.SETTINGS] = JSON.stringify(createV6Settings());
@@ -106,8 +109,8 @@ describe('v6→v9 chain migration', () => {
 
     expect(result.success).toBe(true);
     expect(result.startVersion).toBe(6);
-    expect(result.endVersion).toBe(9);
-    expect(result.migrationsRun).toBe(3);
+    expect(result.endVersion).toBe(10);
+    expect(result.migrationsRun).toBe(4);
     expect(result.readOnlyMode).toBe(false);
   });
 
@@ -147,14 +150,14 @@ describe('v6→v9 chain migration', () => {
     expect(settings.issuer.email).toBeNull();
   });
 
-  it('should update schema version to 9', async () => {
+  it('should update schema version to 10', async () => {
     store[STORAGE_KEYS.SCHEMA_VERSION] = '6';
     store[STORAGE_KEYS.SETTINGS] = JSON.stringify(createV6Settings());
 
     await runMigrations();
 
     const version = parseInt(store[STORAGE_KEYS.SCHEMA_VERSION], 10);
-    expect(version).toBe(9);
+    expect(version).toBe(10);
   });
 
   it('should map ACCOUNTING invoiceTemplateType correctly through chain', async () => {

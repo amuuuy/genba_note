@@ -76,6 +76,7 @@ function createTestDocument(overrides?: Partial<Document>): Document {
     },
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    blockPlacements: null,
     ...overrides,
   };
 }
@@ -215,6 +216,62 @@ describe('asyncStorageService', () => {
       const result = await saveDocument(doc);
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('WRITE_ERROR');
+    });
+
+    // === blockPlacements read-time normalization (SPEC §4.2) ===
+    //
+    // v10 migration は no-op で既存書類を書き換えない。代わりに、読込時に
+    // `blockPlacements: undefined → null` 正規化を施すことで、以降の経路
+    // (duplicate / update / preview / convert) で `null` セマンティクスが
+    // 一貫する。lazy default を保ちつつ Document 型契約を守る方法。
+    describe('blockPlacements normalization on read (SPEC §4.2)', () => {
+      it('legacy document (missing blockPlacements field) → normalizes to null', async () => {
+        const legacy = createTestDocument({ id: 'legacy-1' });
+        const legacyWithoutField: Partial<Document> = { ...legacy };
+        delete legacyWithoutField.blockPlacements;
+        mockedAsyncStorage.getItem.mockResolvedValue(
+          JSON.stringify([legacyWithoutField])
+        );
+
+        const result = await getAllDocuments();
+        expect(result.success).toBe(true);
+        expect(result.data?.[0].blockPlacements).toBeNull();
+      });
+
+      it('explicit null is preserved as null', async () => {
+        const doc = createTestDocument({ id: 'null-1', blockPlacements: null });
+        mockedAsyncStorage.getItem.mockResolvedValue(JSON.stringify([doc]));
+
+        const result = await getAllDocuments();
+        expect(result.success).toBe(true);
+        expect(result.data?.[0].blockPlacements).toBeNull();
+      });
+
+      it('override object is preserved as-is', async () => {
+        const override = { bankAccount: 'top-left' as const };
+        const doc = createTestDocument({
+          id: 'override-1',
+          blockPlacements: override,
+        });
+        mockedAsyncStorage.getItem.mockResolvedValue(JSON.stringify([doc]));
+
+        const result = await getAllDocuments();
+        expect(result.success).toBe(true);
+        expect(result.data?.[0].blockPlacements).toEqual(override);
+      });
+
+      it('getDocumentById inherits the same normalization', async () => {
+        const legacy = createTestDocument({ id: 'legacy-by-id' });
+        const legacyWithoutField: Partial<Document> = { ...legacy };
+        delete legacyWithoutField.blockPlacements;
+        mockedAsyncStorage.getItem.mockResolvedValue(
+          JSON.stringify([legacyWithoutField])
+        );
+
+        const result = await getDocumentById('legacy-by-id');
+        expect(result.success).toBe(true);
+        expect(result.data?.blockPlacements).toBeNull();
+      });
     });
   });
 

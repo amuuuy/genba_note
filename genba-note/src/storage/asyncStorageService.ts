@@ -100,6 +100,8 @@ export async function getAllDocuments(): Promise<StorageResult<Document[]>> {
           ...doc.issuerSnapshot,
           email: doc.issuerSnapshot?.email ?? null,
         },
+        // SPEC §4.2: v10 migration is no-op; normalize undefined → null at read time
+        blockPlacements: doc.blockPlacements ?? null,
       }));
       return successResult(documents);
     } catch {

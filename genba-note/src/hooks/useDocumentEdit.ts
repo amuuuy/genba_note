@@ -13,6 +13,7 @@ import type {
   LineItem,
   IssuerSnapshot,
 } from '@/types/document';
+import type { BlockPlacements } from '@/types/blockPlacement';
 import type { ValidationError } from '@/domain/document/types';
 import {
   createDocument,
@@ -71,6 +72,15 @@ export interface DocumentEditState {
   lineItems: LineItem[];
   /** Issuer snapshot (populated on load/create) */
   issuerSnapshot: IssuerSnapshot | null;
+  /**
+   * Per-document block placement override (v1.0.2, SPEC §7.1).
+   *
+   * `null` = テンプレデフォルト配置 (lazy default)。
+   * モーダル UI から `updateDocument(id, { blockPlacements })` で即保存される
+   * (SPEC §6.5)。BlockPlacementModal は documentId が確定している時のみ
+   * 開ける (SPEC §6.7.1: 新規未保存書類では disabled)。
+   */
+  blockPlacements: BlockPlacements | null;
   /** Validation errors by field */
   errors: Record<string, string>;
   /** Whether form is loading */
@@ -125,6 +135,7 @@ const initialState: DocumentEditState = {
   values: initialFormValues,
   lineItems: [],
   issuerSnapshot: null,
+  blockPlacements: null,
   errors: {},
   isLoading: false,
   isSaving: false,
@@ -168,6 +179,7 @@ function documentEditReducer(
         },
         lineItems: action.document.lineItems,
         issuerSnapshot: action.document.issuerSnapshot,
+        blockPlacements: action.document.blockPlacements,
         errors: {},
         isDirty: false,
         errorMessage: null,
@@ -247,6 +259,7 @@ function documentEditReducer(
         status: action.document.status,
         lineItems: action.document.lineItems,
         issuerSnapshot: action.document.issuerSnapshot,
+        blockPlacements: action.document.blockPlacements,
         isDirty: false,
         errorMessage: null,
       };

@@ -7,10 +7,17 @@
  */
 
 import type { Document, LineItem, IssuerSnapshot, TaxRate } from '@/types/document';
+import type { BlockPlacements, BlockPosition } from '@/types/blockPlacement';
+import { BLOCK_POSITIONS } from '@/types/blockPlacement';
 
 const VALID_DOC_TYPES = ['estimate', 'invoice'] as const;
 const VALID_STATUSES = ['draft', 'sent', 'paid', 'issued'] as const;
 const VALID_TAX_RATES: readonly number[] = [0, 10];
+const BLOCK_KEYS: readonly (keyof BlockPlacements)[] = [
+  'bankAccount',
+  'companyStamp',
+  'remarks',
+];
 
 const DEFAULT_ISSUER_SNAPSHOT: IssuerSnapshot = {
   companyName: null,
@@ -48,6 +55,26 @@ function normaliseIssuerSnapshot(raw: unknown): IssuerSnapshot {
     contactPerson: strOrNull(s.contactPerson),
     email: strOrNull(s.email),
   };
+}
+
+/**
+ * Normalise blockPlacements from untrusted preview URL params (SPEC §4.2).
+ *
+ * - non-object / array → null (lazy default に倒す)
+ * - 各フィールドは valid BlockPosition のみ採用、無効値は drop
+ * - 1 つも valid な field が無いオブジェクト → null
+ */
+function normaliseBlockPlacements(raw: unknown): BlockPlacements | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const result: BlockPlacements = {};
+  for (const key of BLOCK_KEYS) {
+    const v = r[key];
+    if (typeof v === 'string' && (BLOCK_POSITIONS as readonly string[]).includes(v)) {
+      result[key] = v as BlockPosition;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 /** Normalise a line item: explicit field construction, no spread. */
@@ -119,5 +146,6 @@ export function validatePreviewDocument(data: unknown): Document | null {
     issuerSnapshot: normaliseIssuerSnapshot(d.issuerSnapshot),
     createdAt: finiteOr(d.createdAt, Date.now()),
     updatedAt: finiteOr(d.updatedAt, Date.now()),
+    blockPlacements: normaliseBlockPlacements(d.blockPlacements),
   };
 }

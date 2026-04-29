@@ -8,6 +8,8 @@
  * - null represents unset optional values (never use empty string)
  */
 
+import type { BlockPlacements } from './blockPlacement';
+
 /** Document type identifier */
 export type DocumentType = 'estimate' | 'invoice';
 
@@ -221,6 +223,18 @@ export interface Document {
 
   /** Last updated timestamp (epoch ms) */
   updatedAt: number;
+
+  /**
+   * Per-document block placement override (v1.0.2+, SPEC §3.2).
+   *
+   * - `null` … 書類はテンプレデフォルト配置を使う（lazy default）
+   * - `BlockPlacements` … 部分または full override
+   *
+   * 既存書類 (v9 まで) は読込時に `?? null` で正規化される (SPEC §4.2)。
+   * resolver は `src/pdf/pdfTemplateService.ts` の generateHtmlTemplate() 内で
+   * 1 回だけ呼ばれる shared path 設計 (SPEC §3.4)。
+   */
+  blockPlacements: BlockPlacements | null;
 }
 
 /**

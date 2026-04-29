@@ -66,6 +66,7 @@ export function createTestInvoice(overrides?: Partial<Document>): Document {
     createdAt: now,
     updatedAt: now,
     carriedForwardAmount: null,
+    blockPlacements: null,
     ...overrides,
   };
 }
@@ -94,6 +95,7 @@ export function createTestEstimate(overrides?: Partial<Document>): Document {
     createdAt: now,
     updatedAt: now,
     carriedForwardAmount: null,
+    blockPlacements: null,
     ...overrides,
   };
 }

@@ -37,6 +37,7 @@ jest.mock('@/storage/asyncStorageService');
 jest.mock('@/storage/secureStorageService');
 jest.mock('@/domain/document/autoNumberingService');
 import { convertEstimateToInvoice } from '@/domain/document/conversionService';
+import { resolveBlockPlacements } from '@/pdf/pdfTemplateService';
 import * as asyncStorageService from '@/storage/asyncStorageService';
 import * as secureStorageService from '@/storage/secureStorageService';
 import * as autoNumberingService from '@/domain/document/autoNumberingService';
@@ -462,6 +463,155 @@ describe('conversionService', () => {
         expect(result.data?.invoice.createdAt).toBeLessThanOrEqual(afterConversion);
         expect(result.data?.invoice.updatedAt).toBeGreaterThanOrEqual(beforeConversion);
         expect(result.data?.invoice.updatedAt).toBeLessThanOrEqual(afterConversion);
+      });
+    });
+
+    // === blockPlacements full resolve copy (SPEC §3.3 / §8.4) ===
+    //
+    // convert 時は estimate template default で resolve した値を full override
+    // として invoice に保存する。理由:
+    //   - estimate template default ≠ invoice template default の場合
+    //     (FORMAL_STANDARD vs ACCOUNTING)、partial override コピーだと
+    //     override してないブロックの位置が変わってしまい「見積で見えてた配置」
+    //     が請求書で崩れる
+    //   - full resolve することで、見積で整えた見た目が請求書でも完全に維持される
+    //
+    // fixture 規約 (SPEC §8.4): settings.defaultEstimateTemplateId を明示し、
+    // 期待値はそれら fixture 値から導出する (FORMAL_STANDARD ハードコード禁止)
+    describe('blockPlacements full resolve copy (SPEC §3.3 / §8.4)', () => {
+      function setupHappyMocks() {
+        mockedNumbering.generateDocumentNumber.mockResolvedValue({
+          success: true,
+          data: 'INV-001',
+        });
+        mockedSecureStorage.getSensitiveIssuerInfo.mockResolvedValue({
+          success: true,
+          data: null,
+        });
+        mockedAsyncStorage.saveDocument.mockImplementation(async (doc) => ({
+          success: true,
+          data: doc,
+        }));
+        mockedSecureStorage.saveIssuerSnapshot.mockResolvedValue({ success: true });
+      }
+
+      it('estimate.blockPlacements: null → invoice gets full resolve of estimate template default', async () => {
+        const fixtureSettings = {
+          ...DEFAULT_APP_SETTINGS,
+          defaultEstimateTemplateId: 'FORMAL_STANDARD' as const,
+          defaultInvoiceTemplateId: 'ACCOUNTING' as const,
+        };
+        setupHappyMocks();
+        mockedAsyncStorage.getSettings.mockResolvedValue({
+          success: true,
+          data: fixtureSettings,
+        });
+
+        const estimate = createTestDocument({ type: 'estimate', blockPlacements: null });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: estimate,
+        });
+
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
+        expect(result.success).toBe(true);
+
+        // Expected derived from fixture (no FORMAL_STANDARD hardcode)
+        const expected = resolveBlockPlacements(
+          estimate.blockPlacements,
+          fixtureSettings.defaultEstimateTemplateId
+        );
+        expect(result.data?.invoice.blockPlacements).toEqual(expected);
+        // null だった override が full override に変わっていることを確認
+        expect(result.data?.invoice.blockPlacements).not.toBeNull();
+      });
+
+      it('estimate.blockPlacements: partial override → invoice gets full resolved copy', async () => {
+        const fixtureSettings = {
+          ...DEFAULT_APP_SETTINGS,
+          defaultEstimateTemplateId: 'FORMAL_STANDARD' as const,
+        };
+        setupHappyMocks();
+        mockedAsyncStorage.getSettings.mockResolvedValue({
+          success: true,
+          data: fixtureSettings,
+        });
+
+        const estimate = createTestDocument({
+          type: 'estimate',
+          blockPlacements: { bankAccount: 'bottom-right' }, // partial
+        });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: estimate,
+        });
+
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
+        expect(result.success).toBe(true);
+
+        const expected = resolveBlockPlacements(
+          estimate.blockPlacements,
+          fixtureSettings.defaultEstimateTemplateId
+        );
+        expect(result.data?.invoice.blockPlacements).toEqual(expected);
+        expect(result.data?.invoice.blockPlacements?.bankAccount).toBe('bottom-right');
+      });
+
+      it('different defaultEstimateTemplateId → expected derived from that template', async () => {
+        const fixtureSettings = {
+          ...DEFAULT_APP_SETTINGS,
+          defaultEstimateTemplateId: 'CONSTRUCTION' as const,
+        };
+        setupHappyMocks();
+        mockedAsyncStorage.getSettings.mockResolvedValue({
+          success: true,
+          data: fixtureSettings,
+        });
+
+        const estimate = createTestDocument({ type: 'estimate', blockPlacements: null });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: estimate,
+        });
+
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
+        expect(result.success).toBe(true);
+
+        const expected = resolveBlockPlacements(
+          null,
+          fixtureSettings.defaultEstimateTemplateId
+        );
+        expect(result.data?.invoice.blockPlacements).toEqual(expected);
+      });
+
+      it('full override is preserved as-is after resolve (idempotent)', async () => {
+        const fixtureSettings = {
+          ...DEFAULT_APP_SETTINGS,
+          defaultEstimateTemplateId: 'FORMAL_STANDARD' as const,
+        };
+        setupHappyMocks();
+        mockedAsyncStorage.getSettings.mockResolvedValue({
+          success: true,
+          data: fixtureSettings,
+        });
+
+        const fullOverride = {
+          bankAccount: 'top-left' as const,
+          companyStamp: 'bottom-right' as const,
+          remarks: 'top-center' as const,
+        };
+        const estimate = createTestDocument({
+          type: 'estimate',
+          blockPlacements: fullOverride,
+        });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: estimate,
+        });
+
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
+        expect(result.success).toBe(true);
+        expect(result.data?.invoice.blockPlacements).toEqual(fullOverride);
       });
     });
 

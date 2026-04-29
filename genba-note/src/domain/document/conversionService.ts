@@ -28,6 +28,8 @@ import {
 } from '@/storage/secureStorageService';
 import { generateUUID } from '@/utils/uuid';
 import { getTodayString } from '@/utils/dateUtils';
+import { resolveBlockPlacements } from '@/pdf/pdfTemplateService';
+import { resolveTemplateId } from '@/pdf/templates/templateRegistry';
 
 // === Result Types ===
 
@@ -207,6 +209,24 @@ export async function convertEstimateToInvoice(
   // 4. Get fresh issuer snapshot from current settings
   const issuerSnapshot = await getIssuerSnapshotFromSettings();
 
+  // 4.5. Resolve blockPlacements as a full override (SPEC §3.3 full resolve copy).
+  //
+  // estimate と invoice で template default が異なる (FORMAL_STANDARD vs ACCOUNTING)
+  // ため、partial override をそのままコピーすると override してないブロックの位置が
+  // 変わってしまう。estimate template default で resolve した結果を full override と
+  // して保存することで、見積で見えてた配置が請求書でも完全に維持される。
+  const settingsForResolve = await getSettings();
+  const sourceTemplateId = resolveTemplateId(
+    'estimate',
+    settingsForResolve.success && settingsForResolve.data
+      ? settingsForResolve.data.defaultEstimateTemplateId
+      : undefined
+  );
+  const resolvedBlockPlacements = resolveBlockPlacements(
+    estimate.blockPlacements,
+    sourceTemplateId
+  );
+
   // 5. Build the new invoice document
   const now = Date.now();
   const newInvoiceId = generateUUID();
@@ -238,6 +258,9 @@ export async function convertEstimateToInvoice(
     // Timestamps
     createdAt: now,
     updatedAt: now,
+
+    // Block placements: full resolve copy (SPEC §3.3)
+    blockPlacements: resolvedBlockPlacements,
   };
 
   // 6. Save the invoice document

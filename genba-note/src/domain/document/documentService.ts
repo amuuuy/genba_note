@@ -14,6 +14,7 @@ import type {
   LineItem,
   IssuerSnapshot,
 } from '@/types/document';
+import type { BlockPlacements } from '@/types/blockPlacement';
 import type { DocumentServiceError, DomainResult } from './types';
 import { successResult, errorResult, createDocumentServiceError } from './types';
 import {
@@ -59,6 +60,11 @@ export interface CreateDocumentInput {
 
 /**
  * Input for updating a document
+ *
+ * `blockPlacements` is tri-state (SPEC §3.3.1):
+ * - `undefined` (omitted) … no change, keep existing value
+ * - `null` … 「最初の配置に戻す」 (reset to template default)
+ * - `BlockPlacements` … set partial or full override
  */
 export interface UpdateDocumentInput {
   clientName?: string;
@@ -71,6 +77,7 @@ export interface UpdateDocumentInput {
   lineItems?: Omit<LineItem, 'id'>[];
   carriedForwardAmount?: number | null;
   notes?: string | null;
+  blockPlacements?: BlockPlacements | null;
 }
 
 /**
@@ -235,6 +242,7 @@ export async function createDocument(
     issuerSnapshot,
     createdAt: now,
     updatedAt: now,
+    blockPlacements: null,
   };
 
   // Validate document
@@ -369,6 +377,10 @@ export async function updateDocument(
         ? updates.carriedForwardAmount
         : existing.carriedForwardAmount,
     notes: updates.notes !== undefined ? updates.notes : existing.notes,
+    blockPlacements:
+      updates.blockPlacements !== undefined
+        ? updates.blockPlacements
+        : existing.blockPlacements,
     updatedAt: Date.now(),
   };
 

@@ -75,6 +75,7 @@ describe('useDocumentList', () => {
       },
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      blockPlacements: null,
       ...overrides,
     };
   }

@@ -27,8 +27,9 @@ import {
  * - v7: Add PDF customization fields (sealSize, backgroundDesign, template IDs)
  * - v8: Add calendar events collection
  * - v9: Add email field to issuer information
+ * - v10: Add blockPlacements field to Document (no-op migration, lazy default at read time)
  */
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 // === Migrations Initialization Flag ===
 let migrationsInitialized = false;

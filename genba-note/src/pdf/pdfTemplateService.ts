@@ -15,6 +15,8 @@ import { ESTIMATE_COLORS, INVOICE_COLORS, DEFAULT_SEAL_SIZE } from './types';
 import { getScreenThemeCss } from './themes';
 import { getTemplate, resolveTemplateId } from './templates/templateRegistry';
 import { injectSinglePageCssOnly } from './singlePageService';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from './blockPlacementDefaults';
+import { safePosition, type BlockPlacements } from '@/types/blockPlacement';
 import './templates/registerAllTemplates';
 
 // Re-export formatting utilities from templateUtils for backwards compatibility
@@ -70,6 +72,34 @@ export function generateDocumentTitle(type: DocumentType, mode: TemplateMode = '
 export function generateFilenameTitle(documentNo: string, type: DocumentType): string {
   const suffix = type === 'estimate' ? '見積書' : '請求書';
   return `${documentNo}_${suffix}`;
+}
+
+// === Block Placement Resolver (v1.0.2, SPEC §3.4) ===
+
+/**
+ * 書類保存値 (raw override) とテンプレ default をマージし、generator が
+ * 直接使える `Required<BlockPlacements>` を返す純粋関数。
+ *
+ * 配置決定ロジックは preview / print / convert で重複させず、必ずこの 1 関数を
+ * 経由する shared path 設計 (SPEC §3.4)。preview/print 経路への配線は P4 で
+ * `generateHtmlTemplate()` 内に組み込む。convert (P2-E) は本関数を直接呼んで
+ * full resolve copy を行う。
+ *
+ * - `null` / `undefined` override → 全 lazy default
+ * - partial override → 設定済みフィールドのみ override、残りは default
+ * - invalid enum → safePosition() で template default に倒す (SPEC §3.5)
+ */
+export function resolveBlockPlacements(
+  raw: BlockPlacements | null | undefined,
+  templateId: DocumentTemplateId
+): Required<BlockPlacements> {
+  const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS[templateId];
+  const override = raw ?? {};
+  return {
+    bankAccount: safePosition(override.bankAccount, templateDefault.bankAccount),
+    companyStamp: safePosition(override.companyStamp, templateDefault.companyStamp),
+    remarks: safePosition(override.remarks, templateDefault.remarks),
+  };
 }
 
 // === Section Renderers ===
