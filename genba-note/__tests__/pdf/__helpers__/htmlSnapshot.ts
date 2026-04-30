@@ -21,16 +21,27 @@
  *
  * 正規化:
  *   1. <!-- ... --> 形式のコメントを除去 (改行を含むコメントも対応)
- *   2. > と < の間の空白 (タグ間ホワイトスペース) を 1 個の空白に圧縮
+ *   2. **改行を含む** タグ間ホワイトスペース (= cosmetic な改行 + インデント) のみ除去
  *   3. 文字列両端を trim
  *
- * テキストノード内 (タグの間にあるテキスト) の空白は変更しない。
- * 例: <span>見　積　書</span> の全角スペースは保持される。
+ * **保持されるもの (rendering-significant)**:
+ *   - inline sibling 間の半角空白: `<span>a</span> <span>b</span>` ≠ `<span>a</span><span>b</span>`
+ *     (前者は inline 描画で半角空白の隙間が出る)
+ *   - テキストノード内空白 (全角スペース「見　積　書」等)
+ *   - 属性内の空白 (class="a b c")
+ *
+ * **除去されるもの (cosmetic)**:
+ *   - HTML コメント (改行を含む multi-line も)
+ *   - 改行を含むタグ間ホワイトスペース (block 整形のための改行 + インデント)
+ *
+ * Codex P4-C-1 review iter1 blocking 反映: 全 inter-tag whitespace を消すと
+ * inline sibling 間の半角空白で false negative が出るため、改行を含む場合のみ
+ * 除去するように限定した。
  */
 export function normalizeHtmlForSnapshot(html: string): string {
   return html
     .replace(/<!--[\s\S]*?-->/g, '') // remove HTML comments
-    .replace(/>\s+</g, '><') // collapse whitespace between tags
+    .replace(/>\s*\n[\s\n]*</g, '><') // remove inter-tag whitespace that contains newline (cosmetic only)
     .trim();
 }
 
