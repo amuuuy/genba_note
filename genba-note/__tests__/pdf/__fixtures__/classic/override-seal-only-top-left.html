@@ -300,6 +300,27 @@
     }
   
     
+    .block-layout-top,
+.block-layout-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+.block-layout-cell {
+  /* per-cell inner margin is controlled by inner content; wrapper itself has no padding */
+}
+.block-layout-cell.cell-top-left,
+.block-layout-cell.cell-bottom-left {
+  text-align: left;
+}
+.block-layout-cell.cell-top-center,
+.block-layout-cell.cell-bottom-center {
+  text-align: center;
+}
+.block-layout-cell.cell-top-right,
+.block-layout-cell.cell-bottom-right {
+  text-align: right;
+}
   </style>
 </head>
 <body>
@@ -337,16 +358,16 @@
       <div class="classic-issuer-company">テスト株式会社</div>
 <div class="classic-issuer-address">東京都渋谷区テスト1-2-3</div>
 <div class="classic-issuer-tel">TEL: 03-1234-5678</div>
-
+<div class="classic-issuer-registration">登録番号: T1234567890123</div>
+    </div>
+  
+    <div class="block-layout-top"><div class="block-layout-cell cell-top-left" data-position="top-left">
       <div class="classic-seal-container">
         <div class="classic-seal-frame">
           <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=" alt="印影" class="classic-seal-image" />
         </div>
       </div>
-    
-<div class="classic-issuer-registration">登録番号: T1234567890123</div>
-    </div>
-  
+    </div><div class="block-layout-cell cell-top-center" data-position="top-center"></div><div class="block-layout-cell cell-top-right" data-position="top-right"></div></div>
 
     <!-- Info block (subject, period, bank info) -->
     

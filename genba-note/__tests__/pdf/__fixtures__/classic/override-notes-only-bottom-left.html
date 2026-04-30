@@ -300,6 +300,27 @@
     }
   
     
+    .block-layout-top,
+.block-layout-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+.block-layout-cell {
+  /* per-cell inner margin is controlled by inner content; wrapper itself has no padding */
+}
+.block-layout-cell.cell-top-left,
+.block-layout-cell.cell-bottom-left {
+  text-align: left;
+}
+.block-layout-cell.cell-top-center,
+.block-layout-cell.cell-bottom-center {
+  text-align: center;
+}
+.block-layout-cell.cell-top-right,
+.block-layout-cell.cell-bottom-right {
+  text-align: right;
+}
   </style>
 </head>
 <body>
@@ -420,14 +441,15 @@
   
     </table>
   
-
-    <!-- Notes section -->
-    
+    <div class="block-layout-bottom"><div class="block-layout-cell cell-bottom-left" data-position="bottom-left">
     <div class="classic-notes">
       <div class="classic-notes-title">備考</div>
       <div class="classic-notes-content">テスト備考欄</div>
     </div>
-  
+  </div><div class="block-layout-cell cell-bottom-center" data-position="bottom-center"></div><div class="block-layout-cell cell-bottom-right" data-position="bottom-right"></div></div>
+
+    <!-- Notes section -->
+    
   </div>
 </body>
 </html>

@@ -107,7 +107,10 @@
     }
 
     /* === Seal (centered below issuer info) === */
-    .classic-seal-container {
+    /* Legacy: classic-issuer 内の seal は右寄せ。Override branch で seal が grid cell に
+       moved されたとき、cell の text-align を継承させたいため .classic-issuer 内に
+       scope する (P4-C-3 ACCOUNTING / P4-C-4 SIMPLE と同 pattern)。 */
+    .classic-issuer .classic-seal-container {
       display: flex;
       justify-content: flex-end;
       margin: 8px 0;

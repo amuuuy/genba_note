@@ -154,3 +154,279 @@ describe('CLASSIC legacy snapshot (P4-C-4 baseline)', () => {
     compareOrUpdateFixture('invoice-empty-issuer-with-seal', generateForFixture(doc, null));
   });
 });
+
+// === P4-C-4 CLASSIC override branch fixtures ===
+describe('CLASSIC override snapshot (P4-C-4)', () => {
+  const CLASSIC_DEFAULT: BlockPlacements = {
+    bankAccount: 'top-center',
+    companyStamp: 'top-right',
+    remarks: 'bottom-center',
+  };
+
+  // --- Single-block move ---
+
+  it('override-bank-only-bottom-right: bank moves, seal/notes stay (table wrapper)', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'override-bank-only-bottom-right',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-seal-only-top-left: seal moves to top-left, bank/notes stay', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      companyStamp: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-seal-only-top-left',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // CSS scope regression check: `.classic-issuer .classic-seal-container` の scope 化が
+  // legacy 復帰したらこの fixture が壊れる (cell の text-align を継承できない)。
+  it('override-seal-only-top-center: seal moves to top-center (CSS scope regression check)', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      companyStamp: 'top-center',
+    };
+    const generated = generateForFixture(
+      doc,
+      createTestSensitiveSnapshot(),
+      placements
+    );
+    compareOrUpdateFixture('override-seal-only-top-center', generated);
+    expect(generated).toContain('.classic-issuer .classic-seal-container');
+    expect(generated).not.toMatch(/^\s*\.classic-seal-container\s*\{/m);
+  });
+
+  it('override-notes-only-bottom-left: notes moves to bottom-left, bank/seal stay', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      remarks: 'bottom-left',
+    };
+    compareOrUpdateFixture(
+      'override-notes-only-bottom-left',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Hidden cases ---
+
+  it('override-hidden-bank: bank=hidden — disappears', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      bankAccount: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-bank',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-hidden-seal: seal=hidden — disappears', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      companyStamp: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-seal',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-hidden-notes: remarks=hidden — disappears (distinct from doc.notes=null which still emits the box)', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      remarks: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-notes',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Preset-style multi-block override (seal-stays-while-others-change) ---
+
+  it('override-bank-focus-preset: bank=bottom-center, seal=top-right (default), remarks=top-left', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      bankAccount: 'bottom-center',
+      companyStamp: 'top-right',
+      remarks: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-bank-focus-preset',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Same-cell stacking ---
+
+  it('override-same-cell-stack: bank+seal+remarks all moved to bottom-left (SAME_CELL_RENDER_ORDER fixed)', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      bankAccount: 'bottom-left',
+      companyStamp: 'bottom-left',
+      remarks: 'bottom-left',
+    };
+    compareOrUpdateFixture(
+      'override-same-cell-stack',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Estimate path: bank position is no-op ---
+
+  it('estimate-bank-override-noop: estimate + bank=bottom-right has no visible effect', () => {
+    const doc = makeClassicDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'estimate-bank-override-noop',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // Codex P4-C-4 advisory 反映: parity を fixture 同一性ではなく生成 HTML 比較で担保。
+  it('estimate-bank-override-noop generates the same HTML as estimate-default (parity assertion)', () => {
+    const baseDoc = makeClassicDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const noopHtml = generateForFixture(baseDoc, sensitive, {
+      ...CLASSIC_DEFAULT,
+      bankAccount: 'bottom-right',
+    });
+    const legacyDoc = makeClassicDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const legacyHtml = generateForFixture(legacyDoc, sensitive);
+    expect(normalizeHtmlForSnapshot(noopHtml)).toBe(normalizeHtmlForSnapshot(legacyHtml));
+  });
+
+  // doc.notes=null + remarks at default → empty notes box still emits
+  it('override-bank-only-notes-null: bank moves, doc.notes=null + remarks default → empty notes-section still emits', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+      notes: null,
+    });
+    const placements: BlockPlacements = {
+      ...CLASSIC_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'override-bank-only-notes-null',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+});
+
+// === Default-equivalent inputs unconditionally route to legacy branch ===
+describe('CLASSIC default-equivalent inputs route to legacy (P4-C-4)', () => {
+  it('undefined caller override + doc.blockPlacements=null → legacy', () => {
+    const doc = makeClassicDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const generated = generateForFixture(doc, sensitive);
+    const fixturePath = path.join(FIXTURE_DIR, 'estimate-default.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('explicit-null caller override resets doc.blockPlacements to template default', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    doc.blockPlacements = { companyStamp: 'top-left' };
+    const sensitive = createTestSensitiveSnapshot();
+    const generated = generateForFixture(doc, sensitive, null);
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+    expect(generated).not.toContain('block-layout-top');
+    expect(generated).not.toContain('block-layout-bottom');
+  });
+
+  it('partial-matching-default object produces identical HTML to legacy', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const partialDefault: BlockPlacements = { bankAccount: 'top-center' };
+    const generated = generateForFixture(doc, sensitive, partialDefault);
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('full-default-object produces identical HTML to legacy (no override CSS, no grid wrappers)', () => {
+    const doc = makeClassicDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const fullDefault: BlockPlacements = {
+      bankAccount: 'top-center',
+      companyStamp: 'top-right',
+      remarks: 'bottom-center',
+    };
+    const generated = generateForFixture(doc, sensitive, fullDefault);
+    expect(generated).not.toContain('block-layout-top');
+    expect(generated).not.toContain('block-layout-bottom');
+    expect(generated).not.toContain('.block-layout-cell');
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+});
