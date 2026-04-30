@@ -329,6 +329,36 @@ describe('MODERN override snapshot (P4-C-5)', () => {
     expect(normalizeHtmlForSnapshot(noopHtml)).toBe(normalizeHtmlForSnapshot(legacyHtml));
   });
 
+  // Codex P4-C-5 advisory 反映: empty issuer text + moved seal の edge case を凍結。
+  // renderIssuerInfoText() が lines.length===0 で空文字を返す (legacy 互換) という
+  // 挙動が override 経路で正しく動くことを担保する。
+  it('override-empty-issuer-with-moved-seal: empty issuer text + companyStamp=top-left (legacy issuer-section absent + seal in grid cell)', () => {
+    const doc = makeModernDoc({
+      type: 'invoice',
+      issuerOverrides: {
+        companyName: '',
+        representativeName: '',
+        address: '',
+        phone: '',
+        fax: null,
+        sealImageBase64: TEST_SEAL,
+        contactPerson: null,
+      },
+    });
+    // 全 issuer text が空 + seal 単独。companyStamp=top-left に move:
+    //   - renderIssuerInfoText(): lines.length===0 → '' → issuer-section 出ない
+    //   - renderSealFragment(): seal は grid cell top-left に投入される
+    //   - 期待: header に issuer-section なし、grid block-layout-top の cell-top-left に seal
+    const placements: BlockPlacements = {
+      ...MODERN_DEFAULT,
+      companyStamp: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-empty-issuer-with-moved-seal',
+      generateForFixture(doc, null, placements)
+    );
+  });
+
   // doc.notes=null + remarks at default → notes-section omitted (MODERN: notes 空なら出さない)
   it('override-bank-only-notes-null: bank moves, doc.notes=null + remarks default → notes-section absent (SIMPLE と同 pattern)', () => {
     const doc = makeModernDoc({
