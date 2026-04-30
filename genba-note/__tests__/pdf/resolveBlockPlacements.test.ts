@@ -7,7 +7,10 @@
  *
  * convert (P2-E) と P4 の generateHtmlTemplate() 内 shared path で共用される。
  */
-import { resolveBlockPlacements } from '@/pdf/blockPlacementResolver';
+import {
+  resolveBlockPlacements,
+  isDefaultResolvedPlacement,
+} from '@/pdf/blockPlacementResolver';
 import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
 import type { BlockPlacements } from '@/types/blockPlacement';
 
@@ -103,6 +106,78 @@ describe('resolveBlockPlacements()', () => {
       expect(resolved.bankAccount).toBeDefined();
       expect(resolved.companyStamp).toBeDefined();
       expect(resolved.remarks).toBeDefined();
+    });
+  });
+});
+
+/**
+ * isDefaultResolvedPlacement tests (P4-C-1, hybrid pattern 判定 helper).
+ *
+ * Codex global concern 反映: null 以外にも「full default object」「partial が
+ * resolve したら default になる」も legacy branch (= true) に倒れることをテストで固定。
+ */
+describe('isDefaultResolvedPlacement()', () => {
+  describe('legacy branch (resolved equals template default → returns true)', () => {
+    it('null override resolved against FORMAL → true', () => {
+      const resolved = resolveBlockPlacements(null, 'FORMAL_STANDARD');
+      expect(isDefaultResolvedPlacement(resolved, 'FORMAL_STANDARD')).toBe(true);
+    });
+
+    it('full default object explicitly passed → true', () => {
+      const fullDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.MODERN;
+      const resolved = resolveBlockPlacements(fullDefault, 'MODERN');
+      expect(isDefaultResolvedPlacement(resolved, 'MODERN')).toBe(true);
+    });
+
+    it('partial override that resolves back to default → true (e.g. {bankAccount: top-center} on FORMAL)', () => {
+      // FORMAL の bankAccount default は top-center。同じ値を partial 指定 →
+      // resolve 後は full default と同じ → legacy branch
+      const partialMatchingDefault: BlockPlacements = { bankAccount: 'top-center' };
+      const resolved = resolveBlockPlacements(partialMatchingDefault, 'FORMAL_STANDARD');
+      expect(isDefaultResolvedPlacement(resolved, 'FORMAL_STANDARD')).toBe(true);
+    });
+
+    it('it is true for every template when input is null (regression: 6 templates)', () => {
+      const ids = Object.keys(TEMPLATE_DEFAULT_BLOCK_PLACEMENTS) as Array<
+        keyof typeof TEMPLATE_DEFAULT_BLOCK_PLACEMENTS
+      >;
+      for (const id of ids) {
+        const resolved = resolveBlockPlacements(null, id);
+        expect(isDefaultResolvedPlacement(resolved, id)).toBe(true);
+      }
+    });
+  });
+
+  describe('grid override branch (any field differs → returns false)', () => {
+    it('one field differs (bankAccount only) → false', () => {
+      const override: BlockPlacements = { bankAccount: 'bottom-right' };
+      const resolved = resolveBlockPlacements(override, 'FORMAL_STANDARD');
+      expect(isDefaultResolvedPlacement(resolved, 'FORMAL_STANDARD')).toBe(false);
+    });
+
+    it('hidden override on a default-visible block → false', () => {
+      const override: BlockPlacements = { companyStamp: 'hidden' };
+      const resolved = resolveBlockPlacements(override, 'FORMAL_STANDARD');
+      expect(isDefaultResolvedPlacement(resolved, 'FORMAL_STANDARD')).toBe(false);
+    });
+
+    it('full override differing on all 3 → false', () => {
+      const override: BlockPlacements = {
+        bankAccount: 'top-left',
+        companyStamp: 'top-center',
+        remarks: 'top-right',
+      };
+      const resolved = resolveBlockPlacements(override, 'FORMAL_STANDARD');
+      expect(isDefaultResolvedPlacement(resolved, 'FORMAL_STANDARD')).toBe(false);
+    });
+
+    it('cross-template comparison: MODERN default placed on FORMAL → false', () => {
+      // MODERN default: bankAccount: bottom-center; FORMAL default: top-center.
+      // Resolving MODERN's default object against FORMAL produces FORMAL default
+      // for unspecified keys, but bankAccount stays bottom-center → diverges from FORMAL default.
+      const modernDefaultAsRaw = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.MODERN;
+      const resolved = resolveBlockPlacements(modernDefaultAsRaw, 'FORMAL_STANDARD');
+      expect(isDefaultResolvedPlacement(resolved, 'FORMAL_STANDARD')).toBe(false);
     });
   });
 });
