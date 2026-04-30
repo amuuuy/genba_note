@@ -8,6 +8,7 @@
 import type { DocumentWithTotals, SensitiveIssuerSnapshot, DocumentType } from '@/types/document';
 import type { DocumentTemplateId, SealSize, BackgroundDesign } from '@/pdf/types';
 import { DEFAULT_SEAL_SIZE } from '@/pdf/types';
+import type { BlockPlacements } from '@/types/blockPlacement';
 
 /**
  * Options passed to template generators
@@ -16,6 +17,18 @@ export interface TemplateOptions {
   sealSize: SealSize;
   backgroundDesign: BackgroundDesign;
   backgroundImageDataUrl?: string | null;
+  /**
+   * 解決済みブロック配置 (v1.0.2, SPEC §3.4 / §3.4.1).
+   *
+   * `Required<BlockPlacements>` (3 ブロック必ず埋まる) を generator が
+   * 直接使う形。`generateHtmlTemplate()` 内の shared resolver path
+   * (`resolveBlockPlacements()`) で `null` / partial / invalid enum を
+   * テンプレデフォルトに倒した結果が渡される。
+   *
+   * 各 generator はこの値を grid セルへの配置に使う (P4-C で配線)。
+   * P4-A 段階では受け取るだけで、未使用 (旧 DOM 構造のまま動作)。
+   */
+  blockPlacements: Required<BlockPlacements>;
 }
 
 /**

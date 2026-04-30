@@ -25,7 +25,19 @@ const ALL_TEMPLATE_IDS: DocumentTemplateId[] = [
   'CONSTRUCTION',
 ];
 
-const defaultOptions = { sealSize: 'MEDIUM' as const, backgroundDesign: 'NONE' as const };
+// SPEC §3.4: TemplateOptions.blockPlacements is required (Required<BlockPlacements>).
+// Tests pass an explicit fixture so generator code that may reference it does not crash.
+// Each generator receives lazy default of FORMAL_STANDARD here; per-template fixtures
+// (P4-C で grid 配線後) は当該 template default を使う。
+const defaultOptions = {
+  sealSize: 'MEDIUM' as const,
+  backgroundDesign: 'NONE' as const,
+  blockPlacements: {
+    bankAccount: 'top-center' as const,
+    companyStamp: 'top-right' as const,
+    remarks: 'bottom-center' as const,
+  },
+};
 
 describe('templateRegistry', () => {
   describe('getTemplate', () => {

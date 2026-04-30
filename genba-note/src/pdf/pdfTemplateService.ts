@@ -23,6 +23,7 @@ import './templates/registerAllTemplates';
 // `@/pdf/blockPlacementResolver` to avoid pulling in HTML generation and
 // template registration side-effects.
 export { resolveBlockPlacements } from './blockPlacementResolver';
+import { resolveBlockPlacements } from './blockPlacementResolver';
 
 // Re-export formatting utilities from templateUtils for backwards compatibility
 export {
@@ -606,7 +607,7 @@ function generateScreenTemplate(
  * @param input.templateId - Template ID for PDF output (M21). Falls back to doc.type default.
  */
 export function generateHtmlTemplate(input: PdfTemplateInput): PdfTemplateResult {
-  const { document: doc, sensitiveSnapshot, mode = 'screen', templateId, invoiceTemplateType, sealSize, backgroundDesign, backgroundImageDataUrl } = input;
+  const { document: doc, sensitiveSnapshot, mode = 'screen', templateId, invoiceTemplateType, sealSize, backgroundDesign, backgroundImageDataUrl, blockPlacements } = input;
 
   let html: string;
 
@@ -622,11 +623,23 @@ export function generateHtmlTemplate(input: PdfTemplateInput): PdfTemplateResult
     } else {
       resolvedId = resolveTemplateId(doc.type, undefined);
     }
+
+    // SPEC §3.4 shared resolver path: caller の override (`input.blockPlacements`)
+    // が指定されていればそれを、なければ document 保存値 (`doc.blockPlacements`)
+    // を使い、テンプレデフォルトとマージして `Required<BlockPlacements>` を作る。
+    // この 1 関数を経由することで preview / print / convert で配置決定ロジックを
+    // 重複させない (P4-A+B configuration)。
+    const resolvedBlockPlacements = resolveBlockPlacements(
+      blockPlacements !== undefined ? blockPlacements : doc.blockPlacements,
+      resolvedId
+    );
+
     const generator = getTemplate(resolvedId);
     html = generator(doc, sensitiveSnapshot, {
       sealSize: sealSize ?? DEFAULT_SEAL_SIZE,
       backgroundDesign: backgroundDesign ?? 'NONE',
       backgroundImageDataUrl,
+      blockPlacements: resolvedBlockPlacements,
     });
   } else {
     // Use colorful screen template for preview

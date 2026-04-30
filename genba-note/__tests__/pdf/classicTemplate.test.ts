@@ -12,7 +12,15 @@ import {
   createTestSensitiveSnapshot,
 } from './helpers';
 
-const defaultOptions = { sealSize: 'MEDIUM' as const, backgroundDesign: 'NONE' as const };
+const defaultOptions = {
+  sealSize: 'MEDIUM' as const,
+  backgroundDesign: 'NONE' as const,
+  blockPlacements: {
+    bankAccount: 'top-center' as const,
+    companyStamp: 'top-right' as const,
+    remarks: 'bottom-center' as const,
+  },
+};
 
 describe('CLASSIC template', () => {
   it('uses Mincho font family', () => {

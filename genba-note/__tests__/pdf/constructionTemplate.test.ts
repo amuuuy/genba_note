@@ -14,7 +14,15 @@ import {
   createTestIssuerSnapshot,
 } from './helpers';
 
-const defaultOptions = { sealSize: 'MEDIUM' as const, backgroundDesign: 'NONE' as const };
+const defaultOptions = {
+  sealSize: 'MEDIUM' as const,
+  backgroundDesign: 'NONE' as const,
+  blockPlacements: {
+    bankAccount: 'bottom-center' as const,
+    companyStamp: 'top-right' as const,
+    remarks: 'bottom-center' as const,
+  },
+};
 
 describe('CONSTRUCTION template', () => {
   it('is registered in the template registry', () => {
@@ -147,7 +155,15 @@ describe('CONSTRUCTION template', () => {
   describe('background HTML', () => {
     it('inserts background overlay div when background design is active', () => {
       const doc = createTestDocumentWithTotals({ type: 'estimate' });
-      const options = { sealSize: 'MEDIUM' as const, backgroundDesign: 'STRIPE' as const };
+      const options = {
+        sealSize: 'MEDIUM' as const,
+        backgroundDesign: 'STRIPE' as const,
+        blockPlacements: {
+          bankAccount: 'bottom-center' as const,
+          companyStamp: 'top-right' as const,
+          remarks: 'bottom-center' as const,
+        },
+      };
       const html = getTemplate('CONSTRUCTION')(doc, null, options);
       expect(html).toContain('bg-overlay');
       expect(html).toContain('repeating-linear-gradient');

@@ -12,7 +12,15 @@ import {
   createTestSensitiveSnapshot,
 } from './helpers';
 
-const defaultOptions = { sealSize: 'MEDIUM' as const, backgroundDesign: 'NONE' as const };
+const defaultOptions = {
+  sealSize: 'MEDIUM' as const,
+  backgroundDesign: 'NONE' as const,
+  blockPlacements: {
+    bankAccount: 'bottom-center' as const,
+    companyStamp: 'top-right' as const,
+    remarks: 'bottom-center' as const,
+  },
+};
 
 describe('MODERN template', () => {
   it('contains accent color #2563EB', () => {
