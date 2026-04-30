@@ -5,15 +5,20 @@
  * - 実 PDF の pixel diff は P4-D で Yuma 実機テスト
  * - jest 内では HTML 正規化後の文字列完全一致を P4-C ゲートとする
  *
- * 正規化方針 (Codex P4-C 設計判断の global concern 反映):
- * - HTML コメントを除去 (cosmetic な揺れを排除)
- * - 連続空白 (改行・インデント含む) を 1 つに圧縮
- * - 各タグ前後の空白を整形
- * - trim 全体
+ * 正規化方針 (Codex P4-C-1 review iter2 で確定):
+ * - HTML コメントのみ除去 (rendering に完全に無関係)
+ * - 文字列両端の trim
+ * - **inter-tag whitespace は触らない** (改行・インデント・半角空白すべて保持)
  *
- * 注意: 重要な空白 (テキスト内の意図的な全角スペース「見　積　書」等) は保持する。
- * そのため、タグ内テキストの空白は触らず、タグ間 (= ホワイトスペースだけの間)
- * の空白のみ正規化する。
+ * **重要: rendering-significant な whitespace を全保持**
+ *   HTML の whitespace 解釈は文脈依存 (block / inline / inline-text 境界) で、
+ *   `<span>a</span>\n<span>b</span>` も inline 文脈では半角空白として描画される。
+ *   一見 cosmetic な改行 + インデントも rendering に影響し得るため、
+ *   削除すると pixel diff 0 ゲートが false negative になる。
+ *
+ *   前提: template generator は deterministic で、同じ入力 → 同じ HTML 文字列
+ *   (改行 + インデントのパターンも込みで)。fixture との文字列完全一致が
+ *   ゲートとして妥当。
  */
 
 /**
