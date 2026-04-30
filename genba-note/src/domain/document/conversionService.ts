@@ -28,7 +28,7 @@ import {
 } from '@/storage/secureStorageService';
 import { generateUUID } from '@/utils/uuid';
 import { getTodayString } from '@/utils/dateUtils';
-import { resolveBlockPlacements } from '@/pdf/pdfTemplateService';
+import { resolveBlockPlacements } from '@/pdf/blockPlacementResolver';
 import { resolveTemplateId } from '@/pdf/templates/templateRegistry';
 
 // === Result Types ===

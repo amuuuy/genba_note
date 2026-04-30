@@ -101,6 +101,23 @@ function addLineItemIds(lineItems: Omit<LineItem, 'id'>[]): LineItem[] {
 }
 
 /**
+ * Tri-state merge for blockPlacements (SPEC §3.3 / §3.3.1).
+ *
+ *   undefined → no-op (keep existing)
+ *   null      → reset to template default (clear all overrides)
+ *   object    → merge into existing (既存 partial override は維持、
+ *               同じ key は上書き、欠けてる key はテンプレデフォルトに倒れる)
+ */
+function mergeBlockPlacements(
+  existing: BlockPlacements | null,
+  incoming: BlockPlacements | null | undefined
+): BlockPlacements | null {
+  if (incoming === undefined) return existing;
+  if (incoming === null) return null;
+  return { ...(existing ?? {}), ...incoming };
+}
+
+/**
  * Get issuer snapshot from settings
  */
 async function getIssuerSnapshotFromSettings(): Promise<IssuerSnapshot> {
@@ -377,10 +394,17 @@ export async function updateDocument(
         ? updates.carriedForwardAmount
         : existing.carriedForwardAmount,
     notes: updates.notes !== undefined ? updates.notes : existing.notes,
-    blockPlacements:
-      updates.blockPlacements !== undefined
-        ? updates.blockPlacements
-        : existing.blockPlacements,
+    // SPEC §3.3 / §3.3.1 — blockPlacements is tri-state with partial merge:
+    //   undefined → no-op (keep existing)
+    //   null      → reset to template default (clear all overrides)
+    //   object    → MERGE with existing (既存 partial override は維持、
+    //               同じ key は上書き)
+    // UI が partial update (1 ブロックだけ) を送っても他ブロック override が
+    // 消えないことを core レイヤで保証する。
+    blockPlacements: mergeBlockPlacements(
+      existing.blockPlacements,
+      updates.blockPlacements
+    ),
     updatedAt: Date.now(),
   };
 

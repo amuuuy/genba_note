@@ -7,7 +7,7 @@
  *
  * convert (P2-E) と P4 の generateHtmlTemplate() 内 shared path で共用される。
  */
-import { resolveBlockPlacements } from '@/pdf/pdfTemplateService';
+import { resolveBlockPlacements } from '@/pdf/blockPlacementResolver';
 import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
 import type { BlockPlacements } from '@/types/blockPlacement';
 

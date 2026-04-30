@@ -643,6 +643,64 @@ describe('documentService', () => {
         expect(result.success).toBe(true);
         expect(result.data?.blockPlacements).toEqual({ bankAccount: 'bottom-center' });
       });
+
+      // Codex iter1 blocking 指摘の回帰テスト:
+      // SPEC §3.3 「部分 override を merge」を literal に守る。
+      // UI が partial update (1 ブロックだけ) を送っても、既存の他ブロック
+      // override が消えないこと。
+      it('object: merges with existing partial override (preserves other keys)', async () => {
+        const original = createTestDocument({
+          id: 'tri-merge',
+          blockPlacements: { bankAccount: 'top-left' },
+        });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: original,
+        });
+        mockedAsyncStorage.saveDocument.mockImplementation(async (doc) => ({
+          success: true,
+          data: doc,
+        }));
+
+        const result = await updateDocument(
+          'tri-merge',
+          { blockPlacements: { companyStamp: 'bottom-right' } },
+          TODAY
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.data?.blockPlacements).toEqual({
+          bankAccount: 'top-left',     // existing override preserved
+          companyStamp: 'bottom-right', // new override applied
+        });
+      });
+
+      it('object: same key overwrites existing value (merge with conflict)', async () => {
+        const original = createTestDocument({
+          id: 'tri-conflict',
+          blockPlacements: { bankAccount: 'top-left', remarks: 'top-center' },
+        });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: original,
+        });
+        mockedAsyncStorage.saveDocument.mockImplementation(async (doc) => ({
+          success: true,
+          data: doc,
+        }));
+
+        const result = await updateDocument(
+          'tri-conflict',
+          { blockPlacements: { bankAccount: 'bottom-right' } }, // overwrite bankAccount
+          TODAY
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.data?.blockPlacements).toEqual({
+          bankAccount: 'bottom-right', // overwritten
+          remarks: 'top-center',       // preserved
+        });
+      });
     });
   });
 
