@@ -23,7 +23,25 @@ import './templates/registerAllTemplates';
 // `@/pdf/blockPlacementResolver` to avoid pulling in HTML generation and
 // template registration side-effects.
 export { resolveBlockPlacements } from './blockPlacementResolver';
-import { resolveBlockPlacements } from './blockPlacementResolver';
+import { resolveBlockPlacements, isDefaultResolvedPlacement } from './blockPlacementResolver';
+
+/**
+ * Templates that have a real override branch implemented.
+ *
+ * P4-C-2-c で FORMAL_STANDARD のみ implemented (legacy + override stub throw)。
+ * 残り 5 templates (ACCOUNTING/SIMPLE/MODERN/CLASSIC/CONSTRUCTION) は P4-C-3
+ * 以降で順次 implement。
+ *
+ * Codex P4-C-2 review iter1 blocking 反映: 未実装テンプレへの非 default override
+ * を silent fallback すると placement bug が露見しないため、中央で reject する。
+ */
+const TEMPLATES_WITH_OVERRIDE_BRANCH: ReadonlySet<DocumentTemplateId> = new Set([
+  // Add template IDs here as they implement override branch in P4-C-3+:
+  // 'FORMAL_STANDARD' (current state: stub-throws on override; included once
+  //                    P4-C-2-d completes). Until then it is intentionally
+  //                    excluded so generateHtmlTemplate fails fast at the
+  //                    center on FORMAL+override too.
+]);
 
 // Re-export formatting utilities from templateUtils for backwards compatibility
 export {
@@ -633,6 +651,18 @@ export function generateHtmlTemplate(input: PdfTemplateInput): PdfTemplateResult
       blockPlacements !== undefined ? blockPlacements : doc.blockPlacements,
       resolvedId
     );
+
+    // P4-C-2-c safety net (Codex review iter1 blocking 反映):
+    // 未実装テンプレで非 default override が来た場合、generator は silent に
+    // 旧 DOM を出力してしまう (placement bug が露見しない)。中央で fail-fast。
+    if (
+      !isDefaultResolvedPlacement(resolvedBlockPlacements, resolvedId) &&
+      !TEMPLATES_WITH_OVERRIDE_BRANCH.has(resolvedId)
+    ) {
+      throw new Error(
+        `Template '${resolvedId}' does not yet support non-default blockPlacements override (P4-C-2/3 in progress).`
+      );
+    }
 
     const generator = getTemplate(resolvedId);
     html = generator(doc, sensitiveSnapshot, {

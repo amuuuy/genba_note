@@ -98,43 +98,130 @@ describe('FORMAL_STANDARD legacy snapshot (P4-C-2-a baseline)', () => {
     return result.html;
   }
 
-  it('all-present: seal + bank + notes — richest case (Codex recommends RED/GREEN starts here)', () => {
+  // Codex P4-C-2 review iter1 blocking 修正:
+  // FORMAL は invoice でのみ bank info / 登録番号を出力するため、bank coverage cases
+  // は invoice document を使う。estimate も別途 1 ケース確保して経路差を担保。
+  it('invoice-richest: invoice + bank + seal + notes (richest, materially affects HTML)', () => {
     const doc = makeFormalDoc({
+      type: 'invoice',
       issuerOverrides: { sealImageBase64: TEST_SEAL },
     });
     const sensitive = createTestSensitiveSnapshot();
-    compareOrUpdateFixture('all-present', generateForFixture(doc, sensitive));
+    compareOrUpdateFixture('invoice-richest', generateForFixture(doc, sensitive));
   });
 
-  it('no-seal: bank + notes only (omission case)', () => {
+  it('invoice-no-seal: invoice with bank + notes, no seal (seal extraction omission case)', () => {
     const doc = makeFormalDoc({
+      type: 'invoice',
       issuerOverrides: { sealImageBase64: null },
     });
     const sensitive = createTestSensitiveSnapshot();
-    compareOrUpdateFixture('no-seal', generateForFixture(doc, sensitive));
+    compareOrUpdateFixture('invoice-no-seal', generateForFixture(doc, sensitive));
   });
 
-  it('no-bank: seal + notes only (omission case)', () => {
+  it('invoice-no-bank: invoice with seal + notes, no bank (bank extraction omission case)', () => {
     const doc = makeFormalDoc({
+      type: 'invoice',
       issuerOverrides: { sealImageBase64: TEST_SEAL },
     });
-    compareOrUpdateFixture('no-bank', generateForFixture(doc, null));
+    // sensitive=null → renderInfoBox 内 hasBankInfo→false → bank rows omitted
+    compareOrUpdateFixture('invoice-no-bank', generateForFixture(doc, null));
   });
 
-  it('no-notes: seal + bank only (omission case)', () => {
+  it('invoice-no-notes: invoice with bank + seal, doc.notes=null (notes wrapper still emits empty)', () => {
+    // Note: renderNotesSection() always emits the notes wrapper even when doc.notes is null.
+    // This fixture freezes that pre-change behavior so P4-C-2-d extraction does not silently change it.
     const doc = makeFormalDoc({
+      type: 'invoice',
       issuerOverrides: { sealImageBase64: TEST_SEAL },
       notes: null,
     });
     const sensitive = createTestSensitiveSnapshot();
-    compareOrUpdateFixture('no-notes', generateForFixture(doc, sensitive));
+    compareOrUpdateFixture('invoice-no-notes', generateForFixture(doc, sensitive));
   });
 
-  it('minimal: all 3 omitted (most spartan case)', () => {
+  it('estimate-default: estimate document, all sections at default (estimate path coverage)', () => {
+    // Estimate path is intrinsically different from invoice (no bank info/registration number,
+    // different greeting etc.). Frozen as a separate baseline.
     const doc = makeFormalDoc({
-      issuerOverrides: { sealImageBase64: null },
-      notes: null,
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
     });
-    compareOrUpdateFixture('minimal', generateForFixture(doc, null));
+    const sensitive = createTestSensitiveSnapshot();
+    compareOrUpdateFixture('estimate-default', generateForFixture(doc, sensitive));
   });
+});
+
+// Codex P4-C-2 review iter1 blocking 反映:
+// 全テンプレで non-default override が fail-fast することを担保 (P4-C-2-c stub
+// + 中央 generateHtmlTemplate guard の二重防御)。
+describe('FORMAL_STANDARD non-default override stub (P4-C-2-c)', () => {
+  it('throws when blockPlacements resolves to non-default (fails fast)', () => {
+    const doc = makeFormalDoc({ type: 'invoice' });
+    expect(() =>
+      generateHtmlTemplate({
+        document: doc,
+        sensitiveSnapshot: createTestSensitiveSnapshot(),
+        mode: 'pdf',
+        templateId: 'FORMAL_STANDARD',
+        sealSize: 'MEDIUM',
+        backgroundDesign: 'NONE',
+        // partial override that diverges from FORMAL default (top-center)
+        blockPlacements: { bankAccount: 'bottom-right' },
+      })
+    ).toThrow();
+  });
+});
+
+describe('central guard: non-default override on unimplemented templates throws (Codex iter1 blocking)', () => {
+  // 5 unimplemented templates (P4-C-3 以降で実装):
+  // ACCOUNTING / SIMPLE / MODERN / CLASSIC / CONSTRUCTION
+  const UNIMPLEMENTED_TEMPLATES = [
+    'ACCOUNTING',
+    'SIMPLE',
+    'MODERN',
+    'CLASSIC',
+    'CONSTRUCTION',
+  ] as const;
+
+  it.each(UNIMPLEMENTED_TEMPLATES)(
+    '%s rejects non-default blockPlacements with explicit error',
+    (templateId) => {
+      const doc = makeFormalDoc({ type: 'invoice' });
+      expect(() =>
+        generateHtmlTemplate({
+          document: doc,
+          sensitiveSnapshot: createTestSensitiveSnapshot(),
+          mode: 'pdf',
+          templateId,
+          sealSize: 'MEDIUM',
+          backgroundDesign: 'NONE',
+          // diverge from each template's default to force the guard
+          blockPlacements: {
+            bankAccount: 'top-left',
+            companyStamp: 'bottom-left',
+            remarks: 'top-right',
+          },
+        })
+      ).toThrow(/does not yet support non-default blockPlacements override/);
+    }
+  );
+
+  it.each(UNIMPLEMENTED_TEMPLATES)(
+    '%s still works for default placement (legacy path unaffected)',
+    (templateId) => {
+      const doc = makeFormalDoc({ type: 'invoice' });
+      expect(() =>
+        generateHtmlTemplate({
+          document: doc,
+          sensitiveSnapshot: createTestSensitiveSnapshot(),
+          mode: 'pdf',
+          templateId,
+          sealSize: 'MEDIUM',
+          backgroundDesign: 'NONE',
+          // blockPlacements undefined → resolves to template default → legacy path
+        })
+      ).not.toThrow();
+    }
+  );
 });
