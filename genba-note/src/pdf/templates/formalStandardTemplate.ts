@@ -29,6 +29,7 @@ import {
   escapeHtml,
   isValidImageDataUri,
 } from '@/pdf/templateUtils';
+import { isDefaultResolvedPlacement } from '@/pdf/blockPlacementResolver';
 
 // === Local Helpers ===
 
@@ -631,6 +632,19 @@ export function generateFormalStandardTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
+  // SPEC §5.1 hybrid pattern (Codex P4-C-2 verdict A: generator-internal branching):
+  //   default 一致 → legacy DOM そのまま (旧コード完全実行、pixel diff 0 を保証)
+  //   override   → grid layout に切替 (P4-C-2-d で実装、本コミットでは throw)
+  if (!isDefaultResolvedPlacement(options.blockPlacements, 'FORMAL_STANDARD')) {
+    // P4-C-2-d で実装予定。それまで override 経路は明示的に未実装エラーを返す。
+    // (silent fall-through だと grid 配置が無視される latent bug になるため throw)
+    throw new Error(
+      'FORMAL_STANDARD override branch is not yet implemented (P4-C-2-d). ' +
+        'Pass blockPlacements that resolves to template default for now.'
+    );
+  }
+
+  // === Legacy/default branch — 既存 DOM 完全保持 (Codex P4-C-2 global concern) ===
   const labels = getDocumentLabels(doc.type);
   const sealSizePx = getSealSizePx(options.sealSize ?? DEFAULT_SEAL_SIZE, 'FORMAL_STANDARD');
   const backgroundCss = getBackgroundCss(options.backgroundDesign, options.backgroundImageDataUrl);
