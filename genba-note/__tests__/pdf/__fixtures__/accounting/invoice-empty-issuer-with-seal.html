@@ -136,7 +136,12 @@
       color: #333;
     }
 
-    .issuer-seal {
+    /* Legacy: issuer-block 内の seal は右寄せ + 上下マージン。
+       Override branch で seal が moved されたとき (grid cell 配置) は
+       block-layout-cell の text-align (left/center/right) を継承させたいため、
+       .issuer-seal 単独ではなく .issuer-block 内に scope する
+       (Codex P4-C-3 review iter1 blocking 反映)。 */
+    .issuer-block .issuer-seal {
       text-align: right;
       margin: 8px 0;
     }

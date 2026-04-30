@@ -221,6 +221,31 @@ describe('ACCOUNTING override snapshot (P4-C-3)', () => {
     );
   });
 
+  // Codex P4-C-3 iter1 blocking regression: `.issuer-seal { text-align: right }`
+  // が global で grid cell 内の seal も右寄せにしてしまう問題を防ぐ。CSS rule
+  // が `.issuer-block .issuer-seal` に scope されているため、grid cell 内の seal は
+  // cell の text-align (`.block-layout-cell.cell-top-center { text-align: center }`) を
+  // 継承する。この test と fixture が壊れたら CSS scoping が legacy に戻った合図。
+  it('override-seal-only-top-center: seal moves to top-center (CSS scope regression check)', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      companyStamp: 'top-center',
+    };
+    const generated = generateForFixture(
+      doc,
+      createTestSensitiveSnapshot(),
+      placements
+    );
+    compareOrUpdateFixture('override-seal-only-top-center', generated);
+    // CSS rule が `.issuer-block` に scope されていることを直接検査
+    expect(generated).toContain('.issuer-block .issuer-seal');
+    expect(generated).not.toMatch(/^\s*\.issuer-seal\s*\{/m);
+  });
+
   it('override-notes-only-bottom-left: notes moves to bottom-left, bank/seal stay', () => {
     const doc = makeAccountingDoc({
       type: 'invoice',
