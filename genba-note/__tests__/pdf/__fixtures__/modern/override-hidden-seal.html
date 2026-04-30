@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic Pro', 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #1F2937;
+      background: #fff;
+      padding: 30px 40px 30px 44px;
+      border-left: 4px solid #2563EB;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .document-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* === Title === */
+    .modern-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1F2937;
+      text-align: left;
+      border-bottom: 3px solid #2563EB;
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    /* === Meta Section === */
+    .meta-section {
+      margin-bottom: 24px;
+    }
+
+    .meta-row {
+      margin-bottom: 4px;
+    }
+
+    .meta-label {
+      font-size: 12px;
+      color: #6B7280;
+      margin-right: 12px;
+    }
+
+    .meta-value {
+      font-size: 13px;
+      color: #1F2937;
+    }
+
+    /* === Client Section === */
+    .client-section {
+      margin-bottom: 32px;
+    }
+
+    .client-postal {
+      font-size: 12px;
+      color: #6B7280;
+    }
+
+    .client-address-line {
+      font-size: 13px;
+      color: #1F2937;
+      margin-bottom: 2px;
+    }
+
+    .client-name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1F2937;
+      margin-bottom: 4px;
+    }
+
+    .client-suffix {
+      font-weight: normal;
+      margin-left: 8px;
+    }
+
+    .greeting-text {
+      font-size: 13px;
+      color: #6B7280;
+      margin-top: 8px;
+    }
+
+    .client-subject {
+      margin-top: 8px;
+    }
+
+    /* === Info Labels (accent color small text, no black labels) === */
+    .info-label-text {
+      font-size: 11px;
+      font-weight: bold;
+      color: #2563EB;
+      margin-right: 8px;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .info-value-text {
+      font-size: 13px;
+      color: #1F2937;
+    }
+
+    /* === Issuer Section === */
+    .issuer-section {
+      margin-bottom: 32px;
+      text-align: right;
+    }
+
+    .issuer-block {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .issuer-info {
+      text-align: right;
+    }
+
+    .issuer-company {
+      font-size: 15px;
+      font-weight: bold;
+      color: #1F2937;
+      margin-bottom: 4px;
+    }
+
+    .issuer-rep {
+      font-size: 13px;
+      color: #1F2937;
+      margin-bottom: 2px;
+    }
+
+    .issuer-detail {
+      font-size: 12px;
+      color: #6B7280;
+      margin-bottom: 2px;
+    }
+
+    .issuer-registration {
+      font-size: 11px;
+      color: #6B7280;
+      margin-bottom: 2px;
+    }
+
+    .issuer-seal {
+      flex-shrink: 0;
+    }
+
+    .seal-image {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      opacity: 0.85;
+      mix-blend-mode: multiply;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    /* === Line Items Table === */
+    .modern-items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+
+    .modern-items-table th {
+      background: transparent;
+      color: #2563EB;
+      font-weight: bold;
+      font-size: 12px;
+      padding: 12px 16px;
+      border-bottom: 3px solid #2563EB;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .modern-items-table td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #E5E7EB;
+      background: #fff;
+    }
+
+    .modern-items-table .col-name { width: 40%; text-align: left; }
+    .modern-items-table .col-qty { width: 10%; text-align: right; }
+    .modern-items-table .col-unit { width: 10%; text-align: center; }
+    .modern-items-table .col-price { width: 18%; text-align: right; }
+    .modern-items-table .col-total { width: 22%; text-align: right; }
+
+    .modern-items-table .item-name { text-align: left; }
+    .modern-items-table .item-qty { text-align: right; }
+    .modern-items-table .item-unit { text-align: center; }
+    .modern-items-table .item-price { text-align: right; }
+    .modern-items-table .item-total { text-align: right; }
+
+    /* === Totals Card === */
+    .totals-card {
+      background-color: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 32px;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 4px 0;
+    }
+
+    .totals-label {
+      font-size: 13px;
+      color: #1F2937;
+    }
+
+    .totals-value {
+      font-size: 13px;
+      color: #1F2937;
+      font-weight: bold;
+    }
+
+    .totals-detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+
+    .totals-detail-label {
+      font-size: 11px;
+      color: #6B7280;
+    }
+
+    .totals-detail-value {
+      font-size: 11px;
+      color: #6B7280;
+    }
+
+    .totals-total {
+      margin-top: 8px;
+      padding-top: 12px;
+      border-top: 2px solid #2563EB;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .totals-amount {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2563EB;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    /* === Bank Section === */
+    .bank-section {
+      margin-bottom: 32px;
+    }
+
+    .bank-detail {
+      font-size: 13px;
+      color: #1F2937;
+      margin-bottom: 2px;
+    }
+
+    /* === Notes Section === */
+    .notes-section {
+      border-top: 1px solid #E5E7EB;
+      padding-top: 16px;
+      margin-bottom: 24px;
+    }
+
+    .notes-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #6B7280;
+      margin-bottom: 8px;
+    }
+
+    .notes-content {
+      font-size: 13px;
+      color: #6B7280;
+      white-space: pre-wrap;
+      line-height: 1.7;
+    }
+
+    /* === Print === */
+    @media print {
+      body {
+        padding: 30px 40px 30px 44px;
+        border-left: 4px solid #2563EB;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      .document-container {
+        max-width: none;
+      }
+    }
+  
+    
+  </style>
+</head>
+<body>
+  <div class="document-container">
+    
+    <h1 class="modern-title">請求書</h1>
+    
+    <div class="meta-section">
+      <div class="meta-row">
+        <span class="meta-label">請求書番号</span>
+        <span class="meta-value">INV-001</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">請求日</span>
+        <span class="meta-value">2026年1月30日</span>
+      </div>
+      <div class="meta-row"><span class="meta-label">支払期限</span><span class="meta-value">2026年2月28日</span></div>
+    </div>
+  
+    
+    <div class="client-section">
+      <div class="client-address-line">大阪府大阪市テスト町1-1</div>
+      <div class="client-name">テスト顧客<span class="client-suffix">御中</span></div>
+      <div class="greeting-text">下記のとおり、御請求申し上げます。</div>
+      <div class="client-subject"><span class="info-label-text">件名</span><span class="info-value-text">テスト工事案件</span></div>
+    </div>
+  
+    
+    <div class="issuer-section">
+      <div class="issuer-block">
+        <div class="issuer-info">
+          <div class="issuer-company">テスト株式会社</div>
+          <div class="issuer-rep">山田太郎</div>
+          <div class="issuer-detail">東京都渋谷区テスト1-2-3</div>
+          <div class="issuer-detail">TEL: 03-1234-5678</div>
+          <div class="issuer-registration">登録番号: T1234567890123</div>
+        </div>
+      </div>
+    </div>
+  
+    
+    <table class="modern-items-table">
+      <thead>
+        <tr>
+          <th class="col-name">摘要</th>
+          <th class="col-qty">数量</th>
+          <th class="col-unit">単位</th>
+          <th class="col-price">単価（税抜）</th>
+          <th class="col-total">金額（税抜）</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <td class="item-name">テスト工事</td>
+          <td class="item-qty">1</td>
+          <td class="item-unit">式</td>
+          <td class="item-price">10,000円</td>
+          <td class="item-total">10,000円</td>
+        </tr>
+      </tbody>
+    </table>
+  
+    
+    <div class="totals-card">
+      <div class="totals-row">
+        <span class="totals-label">小計（税抜）</span>
+        <span class="totals-value">10,000円</span>
+      </div>
+      <div class="totals-row">
+        <span class="totals-label">消費税</span>
+        <span class="totals-value">1,000円</span>
+      </div>
+      
+        <div class="totals-detail-row">
+          <span class="totals-detail-label">10%対象: 10,000円</span>
+          <span class="totals-detail-value">消費税(10%): 1,000円</span>
+        </div>
+      
+      <div class="totals-row totals-total">
+        <span class="totals-label">合計（税込）</span>
+        <span class="totals-amount">11,000円</span>
+      </div>
+    </div>
+  
+    
+    <div class="bank-section">
+      <div class="info-label-text">お振込先</div>
+      <div class="bank-detail">みずほ銀行 渋谷支店</div>
+      <div class="bank-detail">普通</div>
+      <div class="bank-detail">口座番号: 1234567</div>
+      <div class="bank-detail">口座名義: テスト株式会社</div>
+    </div>
+  
+    
+    <div class="notes-section">
+      <div class="notes-title">備考</div>
+      <div class="notes-content">テスト備考欄</div>
+    </div>
+  
+  </div>
+</body>
+</html>
