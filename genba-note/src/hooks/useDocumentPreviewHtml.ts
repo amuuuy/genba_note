@@ -7,6 +7,17 @@
  * を取って WebView の source prop に渡すだけで、HTML 生成・依存解決・WebView
  * 加工 (CSP/landscape) は本 hook が一手に引き受ける。
  *
+ * 設計の要点 (codex P3 iter1 fix 反映):
+ * - **依存読込 (async I/O) と HTML 生成 (sync) を 2 段に分離**:
+ *   - useEffect は source 変化時のみ走り、settings / issuer / background image
+ *     を解決して `LoadedDeps` を state に保存。template/seal/background の
+ *     override 変更では useEffect は走らず loader も立たない (旧 preview.tsx
+ *     と同じく即時 HTML 再生成のみ)。
+ *   - useMemo で resolved override + HTML 生成。HTML 生成失敗は `htmlError`
+ *     として hook return の `error` に統合 (loading に閉じこもらない)。
+ * - **previewDocument 内容変化検知**: sourceFingerprint に document.id +
+ *   updatedAt を含めて、同一 id でも内容が変わったら再計算する。
+ *
  * 責務境界 (SPEC §6.3):
  * - hook 内: 書類読み込み、settings/issuer/background 解決、HTML 生成、CSP/orientation 加工
  * - 呼び出し側 (preview.tsx): TemplatePickerModal の visible state、共有実行 state、
@@ -28,7 +39,7 @@ import type {
   SealSize,
 } from '@/types/settings';
 import type { BlockPlacements } from '@/types/blockPlacement';
-import type { PdfTemplateInput } from '@/pdf/types';
+import type { PdfTemplateInput, PdfTemplateResult } from '@/pdf/types';
 import { getDocument } from '@/domain/document';
 import { getSettings } from '@/storage/asyncStorageService';
 import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
@@ -43,12 +54,6 @@ import { resolveTemplateForUser } from '@/constants/templateOptions';
 
 // === Public Types ===
 
-/**
- * Source for the document being previewed (SPEC §6.3 discriminated union).
- *
- * - documentId: 保存済み書類を id で読み込む (preview.tsx の通常経路)
- * - previewDocument: 未保存プレビュー (previewData URL params 由来) を直接渡す
- */
 export type DocumentPreviewSource =
   | { kind: 'documentId'; documentId: string }
   | { kind: 'previewDocument'; document: Document };
@@ -64,24 +69,11 @@ export interface UseDocumentPreviewHtmlInput {
 }
 
 export interface UseDocumentPreviewHtmlReturn {
-  /** WebView の source prop に渡す HTML (CSP/landscape 適用済み)。null = まだ準備中 or 失敗。 */
   webViewHtml: string | null;
-  /**
-   * CSP injection が成功したかどうか (defence-in-depth、fail-closed)。
-   * caller は javaScriptEnabled / injectedJavaScript prop の有効化判定に使う。
-   * webViewHtml が non-null でも CSP が当たっていない場合は false。
-   */
   webViewCspApplied: boolean;
-  /** 共有処理 (PDF 出力) で再利用するための DocumentWithTotals */
   resolvedDocumentWithTotals: DocumentWithTotals | null;
-  /** 共有処理で再利用する sensitive snapshot */
   sensitiveSnapshot: SensitiveIssuerSnapshot | null;
-  /**
-   * 実際に HTML 生成に使われた template ID (UI 側で TemplatePicker の
-   * currentTemplateId として表示する値)。null = まだ未解決。
-   */
   resolvedTemplateId: DocumentTemplateId | null;
-  /** 実際に HTML 生成に使われた sealSize (TemplatePicker の currentSealSize) */
   resolvedSealSize: SealSize | null;
   isLoading: boolean;
   error: Error | null;
@@ -90,15 +82,14 @@ export interface UseDocumentPreviewHtmlReturn {
 // === Pure Helpers (exported for unit testing) ===
 
 /**
- * settings + override から template ID を決定する純粋関数。
- *
- * - templateIdOverride が指定されていればそれを優先 (UI から picker で選択した場合)
- * - 未指定なら settings の defaultEstimateTemplateId / defaultInvoiceTemplateId
- * - settings が null なら type ベースの hardcoded fallback
- *
- * 注: settings.defaultEstimateTemplateId は asyncStorageService.getSettings() で
- * VALID_TEMPLATE_IDS により読込時に正規化済みなので registry に依存しない。
+ * source fingerprint — 同一 id でも内容変化を検知するため updatedAt を含める。
+ * codex P3 iter1 blocking 2: previewDocument 内容変化検知のため。
  */
+export function computeSourceFingerprint(source: DocumentPreviewSource): string {
+  if (source.kind === 'documentId') return `id:${source.documentId}`;
+  return `pv:${source.document.id}:${source.document.updatedAt}`;
+}
+
 export function resolveTemplateIdFromSettings(
   docType: DocumentType,
   settings: AppSettings | null,
@@ -117,12 +108,6 @@ export function resolveTemplateIdFromSettings(
   return docType === 'estimate' ? 'FORMAL_STANDARD' : 'ACCOUNTING';
 }
 
-/**
- * generateHtmlTemplate に渡す PdfTemplateInput を組み立てる純粋関数。
- *
- * preview / print / BlockPlacementModal で共通の入力 shape を作り、
- * generator 呼び出しを一元化する (SPEC §3.4 shared path)。
- */
 export interface BuildPdfTemplateInputOptions {
   sealSize: SealSize;
   backgroundDesign: BackgroundDesign;
@@ -144,21 +129,10 @@ export function buildPdfTemplateInput(
     sealSize: options.sealSize,
     backgroundDesign: options.backgroundDesign,
     backgroundImageDataUrl: options.backgroundImageDataUrl,
-    // P4 で generateHtmlTemplate 内 shared path に配線する。今は型を通すだけ。
     blockPlacements: options.blockPlacements,
   };
 }
 
-/**
- * WebView 表示用の HTML に加工する純粋関数。
- * - landscape の場合は @page CSS と viewport meta を inject
- * - CSP meta tag を inject (defence-in-depth)
- *
- * Returns:
- *   { html: null, cspApplied: false } when input is empty
- *   { html, cspApplied } where cspApplied=false signals fail-closed
- *     (caller should disable JavaScript in the WebView)
- */
 export interface BuildWebViewHtmlResult {
   html: string | null;
   cspApplied: boolean;
@@ -174,12 +148,47 @@ export function buildWebViewHtml(
   return { html: csp.html, cspApplied: csp.success };
 }
 
+/**
+ * generateHtmlTemplate の同期 try/catch wrapper (codex P3 iter1 blocking 3)。
+ * HTML 生成失敗時は error を捕捉して `{ html: '', error }` を返す。
+ * caller は `error` を hook return の error フィールドに伝播させ、loading に
+ * 閉じこもらず error UI に遷移できるようにする。
+ *
+ * generator は default 引数で `generateHtmlTemplate` を渡しているが、テスト時
+ * に throw を直接検証するため inject 可能にしている。
+ */
+export interface GenerateHtmlSafeResult {
+  html: string;
+  error: Error | null;
+}
+
+export function generateHtmlSafe(
+  input: PdfTemplateInput,
+  generator: (i: PdfTemplateInput) => PdfTemplateResult = generateHtmlTemplate
+): GenerateHtmlSafeResult {
+  try {
+    const result = generator(input);
+    return { html: result.html, error: null };
+  } catch (e) {
+    return {
+      html: '',
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+}
+
+// === Internal types for the deps-load stage ===
+
+interface LoadedDeps {
+  documentWithTotals: DocumentWithTotals;
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null;
+  settings: AppSettings | null;
+  /** settings.backgroundDesign 前提で pre-resolve 済み (override 時は別途解決が必要だが現状 UI に変更経路なし) */
+  settingsBackgroundImageDataUrl: string | null;
+}
+
 // === Hook ===
 
-/**
- * SPEC §6.3 hybrid hook。preview.tsx / BlockPlacementModal で共用する
- * shared rendering pipeline。
- */
 export function useDocumentPreviewHtml(
   input: UseDocumentPreviewHtmlInput
 ): UseDocumentPreviewHtmlReturn {
@@ -193,24 +202,20 @@ export function useDocumentPreviewHtml(
     orientation = 'PORTRAIT',
   } = input;
 
-  const [documentWithTotals, setDocumentWithTotals] = useState<DocumentWithTotals | null>(null);
-  const [sensitiveSnapshot, setSensitiveSnapshot] = useState<SensitiveIssuerSnapshot | null>(null);
-  const [resolvedTemplateId, setResolvedTemplateId] = useState<DocumentTemplateId | null>(null);
-  const [resolvedSealSize, setResolvedSealSize] = useState<SealSize | undefined>(undefined);
-  const [resolvedBackgroundDesign, setResolvedBackgroundDesign] = useState<BackgroundDesign | undefined>(undefined);
-  const [resolvedBackgroundImageDataUrl, setResolvedBackgroundImageDataUrl] = useState<string | null>(null);
+  const [deps, setDeps] = useState<LoadedDeps | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
 
-  const sourceKey = source.kind === 'documentId' ? source.documentId : source.document.id;
+  const fingerprint = computeSourceFingerprint(source);
 
+  // === Stage 1: deps load (async I/O, runs only when source changes) ===
   useEffect(() => {
     let stale = false;
 
     async function load() {
       try {
         setIsLoading(true);
-        setError(null);
+        setLoadError(null);
 
         // 1. Resolve raw Document
         let document: Document;
@@ -233,42 +238,34 @@ export function useDocumentPreviewHtml(
         const issuerInfo = await resolveIssuerInfo(documentId, enriched.issuerSnapshot);
         if (stale) return;
 
-        // 4. Settings + template/sealSize/background resolve
+        // 4. Settings
         const settingsResult = await getSettings();
         if (stale) return;
         const settings = settingsResult.success ? settingsResult.data ?? null : null;
 
-        const templateId = resolveTemplateIdFromSettings(
-          document.type,
-          settings,
-          templateIdOverride
+        // 5. Background image (uses settings as default; override は同期で resolve 段で扱う)
+        const settingsBackgroundImageDataUrl = await resolveBackgroundImageDataUrl(
+          settings?.backgroundDesign,
+          settings?.backgroundImageUri ?? null
         );
-        const sealSize = sealSizeOverride ?? settings?.sealSize ?? 'MEDIUM';
-        const backgroundDesign =
-          backgroundDesignOverride ?? settings?.backgroundDesign ?? 'NONE';
-        const backgroundImageDataUrl =
-          backgroundImageDataUrlOverride !== undefined
-            ? backgroundImageDataUrlOverride
-            : await resolveBackgroundImageDataUrl(
-                backgroundDesign,
-                settings?.backgroundImageUri ?? null
-              );
         if (stale) return;
 
-        // 5. Batch state updates
-        setDocumentWithTotals({
-          ...enriched,
-          issuerSnapshot: issuerInfo.issuerSnapshot,
-        });
-        setSensitiveSnapshot(issuerInfo.sensitiveSnapshot);
-        setResolvedTemplateId(templateId);
-        setResolvedSealSize(sealSize);
-        setResolvedBackgroundDesign(backgroundDesign);
-        setResolvedBackgroundImageDataUrl(backgroundImageDataUrl);
+        const loaded: LoadedDeps = {
+          documentWithTotals: {
+            ...enriched,
+            issuerSnapshot: issuerInfo.issuerSnapshot,
+          },
+          sensitiveSnapshot: issuerInfo.sensitiveSnapshot,
+          settings,
+          settingsBackgroundImageDataUrl,
+        };
+
+        setDeps(loaded);
         setIsLoading(false);
       } catch (e) {
         if (!stale) {
-          setError(e instanceof Error ? e : new Error(String(e)));
+          setDeps(null);
+          setLoadError(e instanceof Error ? e : new Error(String(e)));
           setIsLoading(false);
         }
       }
@@ -278,39 +275,65 @@ export function useDocumentPreviewHtml(
     return () => {
       stale = true;
     };
-  }, [
-    sourceKey,
-    source.kind,
-    templateIdOverride,
-    sealSizeOverride,
-    backgroundDesignOverride,
-    backgroundImageDataUrlOverride,
-  ]);
+    // 重要: source fingerprint のみに依存。template/seal/background override は
+    // useMemo 段で同期に解決するため、ここで再走しない (codex P3 iter1 blocking 1)。
+  }, [fingerprint]);
 
-  // HTML 生成: 依存値が揃ってから 1 回計算
-  const rawHtml = useMemo(() => {
-    if (!documentWithTotals || !resolvedTemplateId || !resolvedSealSize || !resolvedBackgroundDesign) {
-      return '';
+  // === Stage 2: synchronous resolve of overrides ===
+  const resolvedTemplateId = useMemo<DocumentTemplateId | null>(() => {
+    if (!deps) return null;
+    return resolveTemplateIdFromSettings(
+      deps.documentWithTotals.type,
+      deps.settings,
+      templateIdOverride
+    );
+  }, [deps, templateIdOverride]);
+
+  const resolvedSealSize = useMemo<SealSize | null>(() => {
+    if (!deps) return null;
+    return sealSizeOverride ?? deps.settings?.sealSize ?? 'MEDIUM';
+  }, [deps, sealSizeOverride]);
+
+  const resolvedBackgroundDesign = useMemo<BackgroundDesign | null>(() => {
+    if (!deps) return null;
+    return backgroundDesignOverride ?? deps.settings?.backgroundDesign ?? 'NONE';
+  }, [deps, backgroundDesignOverride]);
+
+  const resolvedBackgroundImageDataUrl = useMemo<string | null>(() => {
+    if (!deps) return null;
+    return backgroundImageDataUrlOverride !== undefined
+      ? backgroundImageDataUrlOverride
+      : deps.settingsBackgroundImageDataUrl;
+  }, [deps, backgroundImageDataUrlOverride]);
+
+  // === Stage 3: HTML generation (sync, may throw — surfaced as error) ===
+  const htmlResult = useMemo<{ html: string; error: Error | null }>(() => {
+    if (
+      !deps ||
+      !resolvedTemplateId ||
+      !resolvedSealSize ||
+      !resolvedBackgroundDesign
+    ) {
+      return { html: '', error: null };
     }
-    try {
-      const result = generateHtmlTemplate(
-        buildPdfTemplateInput(documentWithTotals, sensitiveSnapshot, resolvedTemplateId, {
+    return generateHtmlSafe(
+      buildPdfTemplateInput(
+        deps.documentWithTotals,
+        deps.sensitiveSnapshot,
+        resolvedTemplateId,
+        {
           sealSize: resolvedSealSize,
           backgroundDesign: resolvedBackgroundDesign,
           backgroundImageDataUrl: resolvedBackgroundImageDataUrl,
           blockPlacements:
             blockPlacementsOverride !== undefined
               ? blockPlacementsOverride
-              : documentWithTotals.blockPlacements,
-        })
-      );
-      return result.html;
-    } catch {
-      return '';
-    }
+              : deps.documentWithTotals.blockPlacements,
+        }
+      )
+    );
   }, [
-    documentWithTotals,
-    sensitiveSnapshot,
+    deps,
     resolvedTemplateId,
     resolvedSealSize,
     resolvedBackgroundDesign,
@@ -318,15 +341,21 @@ export function useDocumentPreviewHtml(
     blockPlacementsOverride,
   ]);
 
-  const webView = useMemo(() => buildWebViewHtml(rawHtml, orientation), [rawHtml, orientation]);
+  const webView = useMemo(
+    () => buildWebViewHtml(htmlResult.html, orientation),
+    [htmlResult.html, orientation]
+  );
+
+  // load 失敗が優先、無ければ html 生成失敗
+  const error = loadError ?? htmlResult.error;
 
   return {
     webViewHtml: webView.html,
     webViewCspApplied: webView.cspApplied,
-    resolvedDocumentWithTotals: documentWithTotals,
-    sensitiveSnapshot,
+    resolvedDocumentWithTotals: deps?.documentWithTotals ?? null,
+    sensitiveSnapshot: deps?.sensitiveSnapshot ?? null,
     resolvedTemplateId,
-    resolvedSealSize: resolvedSealSize ?? null,
+    resolvedSealSize,
     isLoading,
     error,
   };

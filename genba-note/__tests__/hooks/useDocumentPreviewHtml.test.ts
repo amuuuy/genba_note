@@ -32,9 +32,11 @@ import {
   resolveTemplateIdFromSettings,
   buildPdfTemplateInput,
   buildWebViewHtml,
+  computeSourceFingerprint,
+  generateHtmlSafe,
 } from '@/hooks/useDocumentPreviewHtml';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
-import type { DocumentWithTotals } from '@/types/document';
+import type { Document, DocumentWithTotals } from '@/types/document';
 import type { BlockPlacements } from '@/types/blockPlacement';
 
 describe('resolveTemplateIdFromSettings — settings + override resolution', () => {
@@ -151,6 +153,177 @@ describe('buildPdfTemplateInput — collects all overrides into PdfTemplateInput
       blockPlacements: override,
     });
     expect(input.blockPlacements).toEqual(override);
+  });
+});
+
+describe('computeSourceFingerprint — detects content changes (codex P3 iter1 blocking 2)', () => {
+  function makeDoc(overrides?: Partial<Document>): Document {
+    return {
+      id: 'doc-1',
+      documentNo: 'EST-001',
+      type: 'estimate',
+      status: 'draft',
+      clientName: 'C',
+      clientAddress: null,
+      customerId: null,
+      subject: null,
+      issueDate: '2026-01-30',
+      validUntil: null,
+      dueDate: null,
+      paidAt: null,
+      lineItems: [],
+      carriedForwardAmount: null,
+      notes: null,
+      issuerSnapshot: {
+        companyName: null,
+        representativeName: null,
+        address: null,
+        phone: null,
+        fax: null,
+        sealImageBase64: null,
+        contactPerson: null,
+        email: null,
+      },
+      createdAt: 1000,
+      updatedAt: 2000,
+      blockPlacements: null,
+      ...overrides,
+    };
+  }
+
+  it('documentId source: fingerprint is stable across same id', () => {
+    const a = computeSourceFingerprint({ kind: 'documentId', documentId: 'x' });
+    const b = computeSourceFingerprint({ kind: 'documentId', documentId: 'x' });
+    expect(a).toBe(b);
+  });
+
+  it('documentId source: differs across different ids', () => {
+    const a = computeSourceFingerprint({ kind: 'documentId', documentId: 'x' });
+    const b = computeSourceFingerprint({ kind: 'documentId', documentId: 'y' });
+    expect(a).not.toBe(b);
+  });
+
+  it('previewDocument source: fingerprint changes when updatedAt changes (content update)', () => {
+    const a = computeSourceFingerprint({
+      kind: 'previewDocument',
+      document: makeDoc({ id: 'd1', updatedAt: 1000 }),
+    });
+    const b = computeSourceFingerprint({
+      kind: 'previewDocument',
+      document: makeDoc({ id: 'd1', updatedAt: 2000 }),
+    });
+    expect(a).not.toBe(b);
+  });
+
+  it('previewDocument source: fingerprint stable when both id and updatedAt are equal', () => {
+    const a = computeSourceFingerprint({
+      kind: 'previewDocument',
+      document: makeDoc({ id: 'd1', updatedAt: 1000 }),
+    });
+    const b = computeSourceFingerprint({
+      kind: 'previewDocument',
+      document: makeDoc({ id: 'd1', updatedAt: 1000 }),
+    });
+    expect(a).toBe(b);
+  });
+
+  it('documentId vs previewDocument with same id produce different fingerprints', () => {
+    const a = computeSourceFingerprint({ kind: 'documentId', documentId: 'd1' });
+    const b = computeSourceFingerprint({
+      kind: 'previewDocument',
+      document: makeDoc({ id: 'd1' }),
+    });
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('generateHtmlSafe — surfaces HTML generation errors (codex P3 iter1 blocking 3)', () => {
+  function makeMinimalDoc(): DocumentWithTotals {
+    return {
+      id: 'doc-1',
+      documentNo: 'EST-001',
+      type: 'estimate',
+      status: 'draft',
+      clientName: 'C',
+      clientAddress: null,
+      customerId: null,
+      subject: null,
+      issueDate: '2026-01-30',
+      validUntil: null,
+      dueDate: null,
+      paidAt: null,
+      lineItems: [],
+      carriedForwardAmount: null,
+      notes: null,
+      issuerSnapshot: {
+        companyName: null,
+        representativeName: null,
+        address: null,
+        phone: null,
+        fax: null,
+        sealImageBase64: null,
+        contactPerson: null,
+        email: null,
+      },
+      createdAt: 0,
+      updatedAt: 0,
+      blockPlacements: null,
+      lineItemsCalculated: [],
+      subtotalYen: 0,
+      taxYen: 0,
+      totalYen: 0,
+      taxBreakdown: [],
+    };
+  }
+
+  it('returns { html, error: null } on success path', () => {
+    const result = generateHtmlSafe(
+      buildPdfTemplateInput(makeMinimalDoc(), null, 'FORMAL_STANDARD', {
+        sealSize: 'MEDIUM',
+        backgroundDesign: 'NONE',
+        backgroundImageDataUrl: null,
+        blockPlacements: null,
+      })
+    );
+    expect(result.error).toBeNull();
+    expect(typeof result.html).toBe('string');
+    expect(result.html.length).toBeGreaterThan(0);
+  });
+
+  it('returns { html: "", error: Error } when generator throws (Error instance)', () => {
+    const throwingGenerator = () => {
+      throw new Error('template missing');
+    };
+    const result = generateHtmlSafe(
+      buildPdfTemplateInput(makeMinimalDoc(), null, 'FORMAL_STANDARD', {
+        sealSize: 'MEDIUM',
+        backgroundDesign: 'NONE',
+        backgroundImageDataUrl: null,
+        blockPlacements: null,
+      }),
+      throwingGenerator
+    );
+    expect(result.html).toBe('');
+    expect(result.error).toBeInstanceOf(Error);
+    expect(result.error?.message).toBe('template missing');
+  });
+
+  it('coerces non-Error throws into Error instances', () => {
+    const throwingGenerator = () => {
+      throw 'string-thrown';
+    };
+    const result = generateHtmlSafe(
+      buildPdfTemplateInput(makeMinimalDoc(), null, 'FORMAL_STANDARD', {
+        sealSize: 'MEDIUM',
+        backgroundDesign: 'NONE',
+        backgroundImageDataUrl: null,
+        blockPlacements: null,
+      }),
+      throwingGenerator
+    );
+    expect(result.html).toBe('');
+    expect(result.error).toBeInstanceOf(Error);
+    expect(result.error?.message).toBe('string-thrown');
   });
 });
 
