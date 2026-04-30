@@ -504,6 +504,27 @@
     }
   
     
+    .block-layout-top,
+.block-layout-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+.block-layout-cell {
+  /* per-cell inner margin is controlled by inner content; wrapper itself has no padding */
+}
+.block-layout-cell.cell-top-left,
+.block-layout-cell.cell-bottom-left {
+  text-align: left;
+}
+.block-layout-cell.cell-top-center,
+.block-layout-cell.cell-bottom-center {
+  text-align: center;
+}
+.block-layout-cell.cell-top-right,
+.block-layout-cell.cell-bottom-right {
+  text-align: right;
+}
   </style>
 </head>
 <body>
@@ -549,10 +570,6 @@
       <div class="info-row">
         <div class="info-label">支払期限</div>
         <div class="info-value">2026年2月28日</div>
-      </div>
-      <div class="info-row">
-        <div class="info-label">振込先</div>
-        <div class="info-value">みずほ銀行 渋谷支店 普通 1234567 テスト株式会社</div>
       </div>
     </div>
   
@@ -617,6 +634,15 @@
       </table>
     </div>
   
+    <div class="block-layout-bottom"><div class="block-layout-cell cell-bottom-left" data-position="bottom-left"></div><div class="block-layout-cell cell-bottom-center" data-position="bottom-center"></div><div class="block-layout-cell cell-bottom-right" data-position="bottom-right">
+    <div class="info-block">
+      
+      <div class="info-row">
+        <div class="info-label">振込先</div>
+        <div class="info-value">みずほ銀行 渋谷支店 普通 1234567 テスト株式会社</div>
+      </div>
+    </div>
+  </div></div>
 
     <!-- Notes -->
     

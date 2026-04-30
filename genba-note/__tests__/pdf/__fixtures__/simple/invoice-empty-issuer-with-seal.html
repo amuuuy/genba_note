@@ -120,8 +120,10 @@
       margin-bottom: 2px;
     }
 
-    /* Seal image positioned below phone number */
-    .issuer-seal {
+    /* Seal image positioned below phone number (legacy: inside issuer-block).
+       Override branch で seal が grid cell に moved されたとき cell の text-align を
+       継承させたいため、.issuer-block に scope する (P4-C-3 と同 pattern)。 */
+    .issuer-block .issuer-seal {
       text-align: right;
       margin: 8px 0;
     }

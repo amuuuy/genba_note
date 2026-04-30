@@ -466,11 +466,10 @@ describe('FORMAL_STANDARD default-equivalent inputs route to legacy (P4-C-2-d)',
 });
 
 describe('central guard: non-default override on unimplemented templates throws (Codex iter1 blocking)', () => {
-  // 4 unimplemented templates (P4-C-4/5 で実装):
-  // SIMPLE / MODERN / CLASSIC / CONSTRUCTION
-  // (FORMAL_STANDARD: P4-C-2-d、ACCOUNTING: P4-C-3 で実装済)
+  // 3 unimplemented templates (P4-C-4/5 で実装):
+  // MODERN / CLASSIC / CONSTRUCTION
+  // (FORMAL_STANDARD: P4-C-2-d、ACCOUNTING: P4-C-3、SIMPLE: P4-C-4 で実装済)
   const UNIMPLEMENTED_TEMPLATES = [
-    'SIMPLE',
     'MODERN',
     'CLASSIC',
     'CONSTRUCTION',
