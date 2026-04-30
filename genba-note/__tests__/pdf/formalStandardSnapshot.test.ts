@@ -402,18 +402,30 @@ describe('FORMAL_STANDARD default-equivalent inputs route to legacy (P4-C-2-d)',
     // SPEC §3.3.1 tri-state: caller が explicit null を渡したら、document に保存された
     // override を **無視** して template default に倒す。doc に non-default override が
     // 保存されていても caller=null なら legacy 出力になることを担保する。
+    //
+    // テスト設計 (Codex iter2 blocking 反映): doc.blockPlacements には **visible** な
+    // override を入れる (broken `blockPlacements ?? doc.blockPlacements` 実装なら
+    // override fixture と一致して fail する形に)。invoice + companyStamp='top-left' は
+    // override-seal-only-top-left.html を生成する visible override で、estimate +
+    // bank='bottom-right' のような showBankInfo=false の no-op とは異なる。
     const doc = makeFormalDoc({
-      type: 'estimate',
+      type: 'invoice',
       issuerOverrides: { sealImageBase64: TEST_SEAL },
     });
-    // doc に non-default override を持たせる (通常なら override branch を呼ぶ状態)
-    doc.blockPlacements = { bankAccount: 'bottom-right' };
+    // doc に visible override を持たせる (broken 実装なら seal が top-left 移動し
+    // override-seal-only-top-left.html と一致してしまう)
+    doc.blockPlacements = { companyStamp: 'top-left' };
     const sensitive = createTestSensitiveSnapshot();
     const generated = generateForFixture(doc, sensitive, null); // explicit null reset
-    const fixturePath = path.join(FIXTURE_DIR, 'estimate-default.html');
+
+    // 正しい実装なら invoice-richest.html (legacy) と一致する (= seal が default の
+    // top-right、grid wrapper 不在)。broken 実装なら override-seal-only-top-left.html
+    // と一致して **この expect で fail する** (= テストが正しく distinguish できる)。
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
     const fixture = fs.readFileSync(fixturePath, 'utf-8');
     expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
-    // override CSS / grid wrapper が emit されないことも確認
+    // override CSS / grid wrapper が emit されないことも確認 (broken 実装なら
+    // block-layout-top に seal が出てしまう)
     expect(generated).not.toContain('block-layout-top');
     expect(generated).not.toContain('block-layout-bottom');
   });
