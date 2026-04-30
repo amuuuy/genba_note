@@ -37,7 +37,7 @@ jest.mock('@/storage/asyncStorageService');
 jest.mock('@/storage/secureStorageService');
 jest.mock('@/domain/document/autoNumberingService');
 import { convertEstimateToInvoice } from '@/domain/document/conversionService';
-import { resolveBlockPlacements } from '@/pdf/pdfTemplateService';
+import { resolveBlockPlacements } from '@/pdf/blockPlacementResolver';
 import * as asyncStorageService from '@/storage/asyncStorageService';
 import * as secureStorageService from '@/storage/secureStorageService';
 import * as autoNumberingService from '@/domain/document/autoNumberingService';
