@@ -28,12 +28,14 @@ import { resolveBlockPlacements, isDefaultResolvedPlacement } from './blockPlace
 /**
  * Templates that have a real override branch implemented.
  *
- * P4-C-2-d で FORMAL_STANDARD、P4-C-3 で ACCOUNTING、P4-C-4 で SIMPLE/CLASSIC、
- * P4-C-5 で MODERN の override branch (block-by-block extraction + dual anchor grid)
- * を完成。残り 1 template (CONSTRUCTION) は P4-C-5 続きで implement。
+ * 全 6 テンプレ (FORMAL_STANDARD / ACCOUNTING / SIMPLE / CLASSIC / MODERN /
+ * CONSTRUCTION) で override branch (block-by-block extraction + dual anchor grid)
+ * 実装完了。
  *
  * Codex P4-C-2 review iter1 blocking 反映: 未実装テンプレへの非 default override
  * を silent fallback すると placement bug が露見しないため、中央で reject する。
+ * 全テンプレ実装済の現状ではこの guard は実用的に発火しないが、将来テンプレ
+ * 追加時の defensive measure として残す。
  */
 const TEMPLATES_WITH_OVERRIDE_BRANCH: ReadonlySet<DocumentTemplateId> = new Set([
   'FORMAL_STANDARD',
@@ -41,8 +43,7 @@ const TEMPLATES_WITH_OVERRIDE_BRANCH: ReadonlySet<DocumentTemplateId> = new Set(
   'SIMPLE',
   'CLASSIC',
   'MODERN',
-  // Add template IDs here as they implement override branch in P4-C-5:
-  //   CONSTRUCTION
+  'CONSTRUCTION',
 ]);
 
 // Re-export formatting utilities from templateUtils for backwards compatibility

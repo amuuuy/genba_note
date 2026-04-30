@@ -484,16 +484,23 @@ describe('FORMAL_STANDARD default-equivalent inputs route to legacy (P4-C-2-d)',
   });
 });
 
-describe('central guard: non-default override on unimplemented templates throws (Codex iter1 blocking)', () => {
-  // 1 unimplemented template (P4-C-5 で実装中): CONSTRUCTION
-  // (FORMAL_STANDARD: P4-C-2-d、ACCOUNTING: P4-C-3、SIMPLE/CLASSIC: P4-C-4、
-  //  MODERN: P4-C-5 で実装済)
-  const UNIMPLEMENTED_TEMPLATES = [
+describe('all 6 templates support non-default blockPlacements override (P4-C-2-d → P4-C-5 完成)', () => {
+  // P4-C-5 で全 6 テンプレ完成: FORMAL_STANDARD / ACCOUNTING / SIMPLE / CLASSIC /
+  // MODERN / CONSTRUCTION すべて override branch 実装済。中央 guard
+  // (TEMPLATES_WITH_OVERRIDE_BRANCH) も全テンプレを含む。
+  // この describe block は「全テンプレで override が動作する」ことを担保する
+  // (旧 unimplemented guard test の後継)。
+  const ALL_TEMPLATES = [
+    'FORMAL_STANDARD',
+    'ACCOUNTING',
+    'SIMPLE',
+    'CLASSIC',
+    'MODERN',
     'CONSTRUCTION',
   ] as const;
 
-  it.each(UNIMPLEMENTED_TEMPLATES)(
-    '%s rejects non-default blockPlacements with explicit error',
+  it.each(ALL_TEMPLATES)(
+    '%s accepts non-default blockPlacements without throwing (override branch implemented)',
     (templateId) => {
       const doc = makeFormalDoc({ type: 'invoice' });
       expect(() =>
@@ -504,18 +511,17 @@ describe('central guard: non-default override on unimplemented templates throws 
           templateId,
           sealSize: 'MEDIUM',
           backgroundDesign: 'NONE',
-          // diverge from each template's default to force the guard
           blockPlacements: {
             bankAccount: 'top-left',
             companyStamp: 'bottom-left',
             remarks: 'top-right',
           },
         })
-      ).toThrow(/does not yet support non-default blockPlacements override/);
+      ).not.toThrow();
     }
   );
 
-  it.each(UNIMPLEMENTED_TEMPLATES)(
+  it.each(ALL_TEMPLATES)(
     '%s still works for default placement (legacy path unaffected)',
     (templateId) => {
       const doc = makeFormalDoc({ type: 'invoice' });
@@ -527,7 +533,7 @@ describe('central guard: non-default override on unimplemented templates throws 
           templateId,
           sealSize: 'MEDIUM',
           backgroundDesign: 'NONE',
-          // blockPlacements undefined → resolves to template default → legacy path
+          // blockPlacements undefined → template default → legacy path
         })
       ).not.toThrow();
     }
