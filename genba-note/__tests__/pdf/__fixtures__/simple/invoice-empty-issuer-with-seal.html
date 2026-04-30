@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic Pro', 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #000;
+      padding: 30px 40px;
+      background: #fff;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .document-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* === Title === */
+    .simple-title {
+      font-size: 26px;
+      font-weight: bold;
+      text-align: center;
+      letter-spacing: 0.2em;
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+      margin-bottom: 25px;
+    }
+
+    /* === Two-column header === */
+    .simple-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .header-left {
+      flex: 1;
+    }
+
+    .header-right {
+      text-align: right;
+      font-size: 12px;
+    }
+
+    /* === Meta info (No, date) === */
+    .header-meta {
+      margin-bottom: 15px;
+    }
+
+    .meta-row {
+      margin-bottom: 4px;
+    }
+
+    .meta-label {
+      font-weight: bold;
+    }
+
+    /* === Client section (left column) === */
+    .simple-client-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .simple-client-name::after {
+      content: ' 御中';
+      font-weight: normal;
+    }
+
+    .client-address {
+      font-size: 12px;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    .greeting-text {
+      font-size: 12px;
+      margin-top: 15px;
+    }
+
+    /* === Issuer block (vertical stack, seal BELOW phone) === */
+    .issuer-block {
+      text-align: right;
+    }
+
+    .issuer-info {
+      text-align: right;
+    }
+
+    .issuer-company {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .issuer-postal {
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+
+    .issuer-address-line {
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+
+    .issuer-tel {
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+
+    /* Seal image positioned below phone number */
+    .issuer-seal {
+      text-align: right;
+      margin: 8px 0;
+    }
+
+    .seal-image {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+      opacity: 0.85;
+      mix-blend-mode: multiply;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    /* Contact person (separate from seal) */
+    .issuer-contact {
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    /* === Info block with black labels === */
+    .info-block {
+      border: 1px solid #000;
+      margin: 20px 0;
+    }
+
+    .info-row {
+      display: flex;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      background: #000;
+      color: #fff;
+      padding: 8px 12px;
+      width: 100px;
+      font-weight: bold;
+      font-size: 11px;
+      flex-shrink: 0;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .info-value {
+      padding: 8px 12px;
+      flex: 1;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
+    /* === Grand total block (2-tone: black label + white amount) === */
+    .grand-total-block {
+      display: flex;
+      border: 2px solid #000;
+      margin: 20px 0;
+      width: auto;
+    }
+
+    .grand-total-label {
+      background: #000;
+      color: #fff;
+      padding: 15px 25px;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .grand-total-value {
+      flex: 1;
+      padding: 15px 25px;
+      text-align: right;
+      font-size: 24px;
+      font-weight: bold;
+      border-left: 2px solid #000;
+    }
+
+    /* === Carried forward block (same 2-tone, thinner border) === */
+    .carried-forward-block {
+      display: flex;
+      border: 1px solid #000;
+      margin: 15px 0;
+    }
+
+    .cf-label {
+      background: #000;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .cf-value {
+      flex: 1;
+      padding: 8px 12px;
+      text-align: right;
+      font-size: 14px;
+      font-weight: bold;
+      background: #fff;
+      border-left: 1px solid #000;
+    }
+
+    /* === Line items table (header: #333 dark gray) === */
+    .simple-items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    .simple-items-table th {
+      background: #333;
+      color: #fff;
+      padding: 10px;
+      text-align: left;
+      font-weight: bold;
+      font-size: 11px;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .simple-items-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #ccc;
+      font-size: 11px;
+    }
+
+    .simple-items-table tr:nth-child(even) {
+      background: #f5f5f5;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .simple-items-table .col-name { width: 45%; }
+    .simple-items-table .col-qty { width: 10%; text-align: right; }
+    .simple-items-table .col-unit { width: 10%; text-align: center; }
+    .simple-items-table .col-price { width: 15%; text-align: right; }
+    .simple-items-table .col-total { width: 20%; text-align: right; }
+
+    .simple-items-table .item-qty,
+    .simple-items-table .item-price,
+    .simple-items-table .item-total { text-align: right; }
+    .simple-items-table .item-unit { text-align: center; }
+
+    /* === Totals section (right-aligned with dotted borders) === */
+    .simple-totals-section {
+      display: flex;
+      justify-content: flex-end;
+      margin: 20px 0;
+    }
+
+    .simple-totals-table {
+      border-collapse: collapse;
+      min-width: 250px;
+    }
+
+    .simple-totals-table td {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .simple-totals-table .totals-label {
+      text-align: left;
+      border-right: 1px solid #ccc;
+    }
+
+    .simple-totals-table .totals-value {
+      text-align: right;
+    }
+
+    .simple-totals-table tr {
+      border-bottom: 1px dotted #999;
+    }
+
+    .simple-totals-table .carried-forward-row td {
+      color: #666;
+    }
+
+    .simple-totals-table .tax-breakdown-row td {
+      font-size: 10px;
+      color: #666;
+      padding: 3px 12px;
+    }
+
+    .simple-totals-table .tax-rate-label {
+      padding-left: 20px;
+    }
+
+    .simple-totals-table .total-final-row {
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+      background: #f5f5f5;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .simple-totals-table .total-final-row td {
+      font-weight: bold;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    .simple-totals-table .total-final-label {
+      font-size: 13px;
+    }
+
+    .simple-totals-table .total-final-value {
+      font-size: 16px;
+      color: #000;
+    }
+
+    /* === Notes section (M21 CHANGE: borderless with top line only) === */
+    .simple-notes-section {
+      margin: 25px 0;
+      padding-top: 15px;
+      border-top: 1px solid #ccc;
+    }
+
+    .simple-notes-section .notes-title {
+      font-size: 11px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .simple-notes-section .notes-content {
+      padding: 0;
+      font-size: 11px;
+      white-space: pre-wrap;
+    }
+
+    /* === Print === */
+    @media print {
+      body {
+        padding: 20px;
+      }
+      .document-container {
+        max-width: none;
+      }
+    }
+  
+    
+    /* Header - No background fill, clean border only */
+    .header {
+      background: transparent;
+      border-bottom: 2px solid #333333;
+      padding: 24px 0;
+    }
+
+    .document-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333333;
+      text-align: center;
+      letter-spacing: 0.1em;
+    }
+
+    .document-meta {
+      margin-top: 12px;
+    }
+
+    /* Total Amount Box - Border emphasis only, no background */
+    .total-box {
+      border: 2px solid #333333;
+      background: transparent;
+      padding: 16px 20px;
+      border-radius: 0;
+    }
+
+    .total-box .label {
+      font-size: 13px;
+      color: #666666;
+    }
+
+    .total-box .amount {
+      font-size: 28px;
+      font-weight: bold;
+      color: #333333;
+    }
+
+    /* Table - Thin borders, zebra striping */
+    .items-table th {
+      background: transparent;
+      color: #333333;
+      border: 1px solid #666666;
+      border-bottom: 2px solid #333333;
+      font-weight: bold;
+    }
+
+    .items-table td {
+      border: 1px solid #ddd;
+      border-left: none;
+      border-right: none;
+    }
+
+    .items-table tr:nth-child(even) {
+      background: #f8f8f8;
+    }
+
+    .items-table tr:last-child td {
+      border-bottom: 1px solid #666666;
+    }
+
+    /* Bank section - Simple border, no background */
+    .bank-section {
+      border: 1px solid #666666;
+      background: transparent;
+      border-radius: 0;
+    }
+
+    .bank-section h3 {
+      color: #333333;
+      font-weight: bold;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+
+    /* Due date - No background, simple border */
+    .due-date-section {
+      background: transparent;
+      border: 1px solid #666666;
+      border-radius: 0;
+    }
+
+    .due-date-section .label {
+      color: #333333;
+      font-weight: bold;
+    }
+
+    /* Subject section - Light gray background */
+    .subject-section {
+      background: #f8f8f8;
+      border-radius: 0;
+    }
+
+    /* Notes section - Light gray background */
+    .notes-section {
+      background: #f8f8f8;
+      border-radius: 0;
+    }
+
+    .notes-section h3 {
+      color: #333333;
+    }
+
+    /* Client section - Clean border */
+    .client-section {
+      border: 1px solid #666666;
+      border-radius: 0;
+    }
+
+    /* Totals section */
+    .totals-section {
+      border: 1px solid #666666;
+      border-radius: 0;
+    }
+
+    .total-final {
+      font-size: 18px;
+      color: #333333;
+      border-top: 2px solid #333333;
+      font-weight: bold;
+    }
+
+    /* Issuer section */
+    .issuer-section {
+      border-top: 1px solid #666666;
+    }
+  
+    
+  </style>
+</head>
+<body>
+  <div class="document-container">
+    
+    <!-- Title -->
+    <div class="simple-title">請　求　書</div>
+
+    <!-- Two-column header -->
+    <div class="simple-header">
+      <div class="header-left">
+        <div class="simple-client-name">テスト顧客</div>
+        <div class="client-address">大阪府大阪市テスト町1-1</div>
+        <div class="greeting-text">下記のとおり、御請求申し上げます。</div>
+      </div>
+      <div class="header-right">
+        <div class="header-meta">
+          <div class="meta-row"><span class="meta-label">請求書番号:</span> INV-001</div>
+          <div class="meta-row"><span class="meta-label">請求日:</span> 2026年1月30日</div>
+        </div>
+        
+    <div class="issuer-block">
+      <div class="issuer-info">
+        <div class="issuer-seal"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=" alt="印影" class="seal-image" /></div>
+      </div>
+    </div>
+  
+      </div>
+    </div>
+
+    <!-- Info block (subject, period, bank info) -->
+    
+    <div class="info-block">
+      
+      <div class="info-row">
+        <div class="info-label">件名</div>
+        <div class="info-value">テスト工事案件</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">支払期限</div>
+        <div class="info-value">2026年2月28日</div>
+      </div>
+    </div>
+  
+
+    <!-- Grand total -->
+    
+    <div class="grand-total-block">
+      <div class="grand-total-label">合計（税込）</div>
+      <div class="grand-total-value">11,000円</div>
+    </div>
+  
+
+    <!-- Carried forward -->
+    
+
+    <!-- Line items -->
+    
+    <table class="simple-items-table">
+      <thead>
+        <tr>
+          <th class="col-name">摘要</th>
+          <th class="col-qty">数量</th>
+          <th class="col-unit">単位</th>
+          <th class="col-price">単価（税抜）</th>
+          <th class="col-total">金額（税抜）</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <td class="item-name">テスト工事</td>
+          <td class="item-qty">1</td>
+          <td class="item-unit">式</td>
+          <td class="item-price">10,000円</td>
+          <td class="item-total">10,000円</td>
+        </tr>
+      </tbody>
+    </table>
+  
+
+    <!-- Totals -->
+    
+    <div class="simple-totals-section">
+      <table class="simple-totals-table">
+        <tr>
+          <td class="totals-label">小計（税抜）</td>
+          <td class="totals-value">10,000円</td>
+        </tr>
+        <tr class="tax-total-row">
+          <td class="totals-label">消費税</td>
+          <td class="totals-value">1,000円</td>
+        </tr>
+        
+        <tr class="tax-breakdown-row">
+          <td class="totals-label tax-rate-label">　消費税(10%)</td>
+          <td class="totals-value">1,000円</td>
+        </tr>
+        <tr class="total-final-row">
+          <td class="totals-label total-final-label">合計（税込）</td>
+          <td class="totals-value total-final-value">11,000円</td>
+        </tr>
+      </table>
+    </div>
+  
+
+    <!-- Notes -->
+    
+    <div class="simple-notes-section">
+      <div class="notes-title">備考</div>
+      <div class="notes-content">テスト備考欄</div>
+    </div>
+  
+  </div>
+</body>
+</html>
