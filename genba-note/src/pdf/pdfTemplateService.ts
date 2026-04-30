@@ -661,7 +661,7 @@ export function generateHtmlTemplate(input: PdfTemplateInput): PdfTemplateResult
       !TEMPLATES_WITH_OVERRIDE_BRANCH.has(resolvedId)
     ) {
       throw new Error(
-        `Template '${resolvedId}' does not yet support non-default blockPlacements override (P4-C-2/3 in progress).`
+        `Template '${resolvedId}' does not yet support non-default blockPlacements override.`
       );
     }
 
