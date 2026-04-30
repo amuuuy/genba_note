@@ -29,7 +29,8 @@ import {
   resetTestIdCounter,
 } from './helpers';
 import { normalizeHtmlForSnapshot } from './__helpers__/htmlSnapshot';
-import type { DocumentWithTotals, IssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
+import type { BlockPlacements } from '@/types/blockPlacement';
 
 const FIXTURE_DIR = path.join(__dirname, '__fixtures__', 'formalStandard');
 const UPDATE = process.env.UPDATE_FIXTURES === '1';
@@ -80,23 +81,32 @@ function compareOrUpdateFixture(name: string, generated: string): void {
   expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(expected));
 }
 
+/**
+ * generateHtmlTemplate 経由で FORMAL_STANDARD HTML を生成する fixture-helper。
+ * resolver + templateId 解決も同時に検証 (Codex P4-C-2 global concern 反映)。
+ *
+ * blockPlacements が未指定なら doc.blockPlacements (null) → resolveBlockPlacements で
+ * FORMAL_STANDARD default に倒れ legacy branch を通る。明示指定すれば override branch
+ * の各ケースをテスト可能。
+ */
+function generateForFixture(
+  doc: DocumentWithTotals,
+  sensitive: SensitiveIssuerSnapshot | null,
+  blockPlacements?: BlockPlacements
+): string {
+  const result = generateHtmlTemplate({
+    document: doc,
+    sensitiveSnapshot: sensitive,
+    mode: 'pdf',
+    templateId: 'FORMAL_STANDARD',
+    sealSize: 'MEDIUM',
+    backgroundDesign: 'NONE',
+    blockPlacements,
+  });
+  return result.html;
+}
+
 describe('FORMAL_STANDARD legacy snapshot (P4-C-2-a baseline)', () => {
-  // generateHtmlTemplate 経由で生成 → resolver+templateId 解決も同時に検証
-  // (Codex P4-C-2 global concern 反映)
-  function generateForFixture(doc: DocumentWithTotals, sensitive: ReturnType<typeof createTestSensitiveSnapshot> | null): string {
-    const result = generateHtmlTemplate({
-      document: doc,
-      sensitiveSnapshot: sensitive,
-      mode: 'pdf',
-      templateId: 'FORMAL_STANDARD',
-      sealSize: 'MEDIUM',
-      backgroundDesign: 'NONE',
-      // blockPlacements は未指定 → doc.blockPlacements (null) → resolveBlockPlacements で
-      // FORMAL_STANDARD default (top-center / top-right / bottom-center) に倒れる
-      // → P4-C-2-c の legacy branch (= 旧コード完全実行) を通る
-    });
-    return result.html;
-  }
 
   // Codex P4-C-2 review iter1 blocking 修正:
   // FORMAL は invoice でのみ bank info / 登録番号を出力するため、bank coverage cases
@@ -150,26 +160,273 @@ describe('FORMAL_STANDARD legacy snapshot (P4-C-2-a baseline)', () => {
     const sensitive = createTestSensitiveSnapshot();
     compareOrUpdateFixture('estimate-default', generateForFixture(doc, sensitive));
   });
+
+  // Codex P4-C-2-d review iter2 advisory 反映:
+  // buildIssuerInfoLines が空 (issuer text 全 null) で seal だけが残るケースは
+  // legacy renderIssuerHeader の "empty .issuer-info wrapper + seal" 分岐を通る。
+  // shared primitive (renderIssuerInfoText) 化後も whitespace 完全一致を保つことを
+  // fixture で凍結する。
+  it('invoice-empty-issuer-with-seal: all issuer text fields null, seal present (empty .issuer-info edge)', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: {
+        companyName: '',
+        representativeName: '',
+        address: '',
+        phone: '',
+        fax: null,
+        sealImageBase64: TEST_SEAL,
+        contactPerson: null,
+      },
+    });
+    // sensitive=null → 登録番号も無し → infoLines.length === 0 が確定
+    compareOrUpdateFixture('invoice-empty-issuer-with-seal', generateForFixture(doc, null));
+  });
 });
 
-// Codex P4-C-2 review iter1 blocking 反映:
-// 全テンプレで non-default override が fail-fast することを担保 (P4-C-2-c stub
-// + 中央 generateHtmlTemplate guard の二重防御)。
-describe('FORMAL_STANDARD non-default override stub (P4-C-2-c)', () => {
-  it('throws when blockPlacements resolves to non-default (fails fast)', () => {
-    const doc = makeFormalDoc({ type: 'invoice' });
-    expect(() =>
-      generateHtmlTemplate({
-        document: doc,
-        sensitiveSnapshot: createTestSensitiveSnapshot(),
-        mode: 'pdf',
-        templateId: 'FORMAL_STANDARD',
-        sealSize: 'MEDIUM',
-        backgroundDesign: 'NONE',
-        // partial override that diverges from FORMAL default (top-center)
-        blockPlacements: { bankAccount: 'bottom-right' },
-      })
-    ).toThrow();
+// === P4-C-2-d FORMAL override branch fixtures ===
+//
+// SPEC §7.2 (block-by-block override + dual anchor) を実装した override branch の
+// 出力を凍結する。各 fixture は「block を 1 つだけ動かす」「複数動かす」「同じ
+// セルに集める」「hidden」など代表シナリオをカバーし、legacy → override の挙動
+// 差分を visual / text 両面で確認できるようにする。
+describe('FORMAL_STANDARD override snapshot (P4-C-2-d)', () => {
+  // Helper: full default placement reference (FORMAL_STANDARD)
+  const FORMAL_DEFAULT: BlockPlacements = {
+    bankAccount: 'top-center',
+    companyStamp: 'top-right',
+    remarks: 'bottom-center',
+  };
+
+  // --- Single-block move (1 block moves, others stay at legacy DOM) ---
+
+  it('override-bank-only-bottom-right: bank moves to bottom-right, seal/notes stay', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'override-bank-only-bottom-right',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-seal-only-top-left: seal moves to top-left, bank/notes stay', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      companyStamp: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-seal-only-top-left',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-notes-only-bottom-left: notes moves to bottom-left, bank/seal stay', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      remarks: 'bottom-left',
+    };
+    compareOrUpdateFixture(
+      'override-notes-only-bottom-left',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Hidden cases (block disappears entirely) ---
+
+  it('override-hidden-bank: bank=hidden — disappears from info-box and grid', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      bankAccount: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-bank',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-hidden-seal: seal=hidden — disappears from header and grid', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      companyStamp: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-seal',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-hidden-notes: remarks=hidden — disappears from notes-section and grid (Codex global concern: distinct from doc.notes=null which still emits the box)', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      remarks: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-notes',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Preset-style multi-block override (matches §3.6 BLOCK_PLACEMENT_PRESETS) ---
+
+  it('override-bank-focus-preset: bank=bottom-center, seal=top-right (default), remarks=top-left (preset shape)', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    // bankFocus 風: bank を bottom-center に動かし remarks を top-left に動かす。
+    // seal は default 維持 → header に残る (Codex iter1 notes #4: "seal-stays-while-others-change")
+    const placements: BlockPlacements = {
+      bankAccount: 'bottom-center',
+      companyStamp: 'top-right',
+      remarks: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-bank-focus-preset',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Same-cell stacking (multiple blocks share one cell, render order固定) ---
+
+  it('override-same-cell-stack: bank+seal+remarks all moved to bottom-left (SAME_CELL_RENDER_ORDER fixed: bank → seal → remarks)', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    // 全 3 blocks を bottom-left に集める (FORMAL default とは異なる位置)。
+    // SAME_CELL_RENDER_ORDER (bankAccount → companyStamp → remarks) で stack 順が固定。
+    // bottom-left を選ぶ理由: FORMAL default で 3 ブロック共 bottom-left ではない
+    // (bank=top-center, seal=top-right, remarks=bottom-center) ため確実に 3 つとも moved。
+    const placements: BlockPlacements = {
+      bankAccount: 'bottom-left',
+      companyStamp: 'bottom-left',
+      remarks: 'bottom-left',
+    };
+    compareOrUpdateFixture(
+      'override-same-cell-stack',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Estimate path: bank position is no-op (showBankInfo=false) ---
+
+  it('estimate-bank-override-noop: estimate + bank=bottom-right has no visible effect (showBankInfo=false, override branch fragments empty)', () => {
+    // Codex global concern: estimate で bank position をいじっても見た目は変わらない
+    // (showBankInfo=false により bank fragment が空 → grid セルに配置されない、
+    // legacy info-box にも bank は出ない)。それでも override branch を通る (isDefault=false)。
+    // 結果: BLOCK_LAYOUT_GRID_CSS は inject されず legacy 同形の HTML が出る。
+    const doc = makeFormalDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'estimate-bank-override-noop',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- doc.notes=null + remarks at default → empty notes box still emits ---
+
+  it('override-bank-only-notes-null: bank moves, doc.notes=null + remarks default → empty notes-section still emits at legacy position', () => {
+    // Codex global concern: doc.notes=null と remarks=hidden の区別を明確化。
+    // remarks at default (untouched) で doc.notes=null なら legacy renderNotesSection が
+    // 空 box を出力 (legacy 互換)。これに対し remarks=hidden なら notes-section 自体が消える
+    // (override-hidden-notes fixture 参照)。
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+      notes: null,
+    });
+    const placements: BlockPlacements = {
+      ...FORMAL_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'override-bank-only-notes-null',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+});
+
+// === Default-equivalent inputs unconditionally route to legacy branch ===
+// Codex iter1 notes_for_next_review #4: default-equivalent inputs (null / partial /
+// full default object) は generator level でも確実に legacy branch を通り、
+// override CSS / grid wrapper を一切 emit しないことを担保する。
+describe('FORMAL_STANDARD default-equivalent inputs route to legacy (P4-C-2-d)', () => {
+  it('null blockPlacements produces identical HTML to estimate-default fixture', () => {
+    const doc = makeFormalDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const expected = generateForFixture(doc, sensitive); // no blockPlacements arg
+    const fixturePath = path.join(FIXTURE_DIR, 'estimate-default.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(expected)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('partial-matching-default object produces identical HTML to legacy', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    // Only bank specified, matching FORMAL default (top-center) — should resolve to default
+    const partialDefault: BlockPlacements = { bankAccount: 'top-center' };
+    const generated = generateForFixture(doc, sensitive, partialDefault);
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('full-default-object produces identical HTML to legacy (no override CSS, no grid wrappers)', () => {
+    const doc = makeFormalDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const fullDefault: BlockPlacements = {
+      bankAccount: 'top-center',
+      companyStamp: 'top-right',
+      remarks: 'bottom-center',
+    };
+    const generated = generateForFixture(doc, sensitive, fullDefault);
+    expect(generated).not.toContain('block-layout-top');
+    expect(generated).not.toContain('block-layout-bottom');
+    expect(generated).not.toContain('.block-layout-cell');
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
   });
 });
 

@@ -30,6 +30,15 @@ import {
   isValidImageDataUri,
 } from '@/pdf/templateUtils';
 import { isDefaultResolvedPlacement } from '@/pdf/blockPlacementResolver';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
+import {
+  computePerBlockStatus,
+  placeBlocks,
+  renderBlockLayoutTop,
+  renderBlockLayoutBottom,
+  BLOCK_LAYOUT_GRID_CSS,
+  type RenderedBlocks,
+} from '@/pdf/blockPlacementLayout';
 
 // === Local Helpers ===
 
@@ -612,16 +621,13 @@ function renderInfoBoxRows(
 }
 
 /**
- * Render info box (subject, period, bank info for invoice) \u2014 legacy composition.
+ * Wrap `renderInfoBoxRows()` \u51fa\u529b\u3067 `<div class="info-box">` \u3092\u4f5c\u308b\u3002
+ * \u7a7a rows \u306e\u5834\u5408\u306f wrapper \u81ea\u4f53\u3082\u7701\u7565 (rows \u304c\u7121\u3044\u306e\u306b\u67a0\u3060\u3051\u51fa\u3059\u306e\u3092\u9632\u3050)\u3002
  *
- * Internally delegates to renderInfoBoxRows(includeBank=true), wrapping with
- * `<div class="info-box">` when any rows exist.
+ * legacy / override \u4e21 branch \u3067 wrapper \u306e whitespace \u3092\u5b8c\u5168\u4e00\u81f4\u3055\u305b\u308b\u305f\u3081\u3001
+ * \u3053\u306e\u5171\u901a helper \u7d4c\u7531\u3067\u7d44\u307f\u7acb\u3066\u308b\u3002
  */
-function renderInfoBox(
-  doc: DocumentWithTotals,
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null
-): string {
-  const rowsHtml = renderInfoBoxRows(doc, sensitiveSnapshot, /*includeBank=*/true);
+function renderInfoBoxFromRows(rowsHtml: string): string {
   if (rowsHtml === '') {
     return '';
   }
@@ -631,6 +637,19 @@ function renderInfoBox(
       ${rowsHtml}
     </div>
   `;
+}
+
+/**
+ * Render info box (subject, period, bank info for invoice) \u2014 legacy composition.
+ *
+ * Internally delegates to renderInfoBoxRows(includeBank=true) + renderInfoBoxFromRows.
+ */
+function renderInfoBox(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const rowsHtml = renderInfoBoxRows(doc, sensitiveSnapshot, /*includeBank=*/true);
+  return renderInfoBoxFromRows(rowsHtml);
 }
 
 /**
@@ -743,25 +762,89 @@ export function generateFormalStandardTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
-  // SPEC §5.1 hybrid pattern (Codex P4-C-2 verdict A: generator-internal branching):
+  // SPEC §5.1 / §7.2 hybrid pattern:
   //   default 一致 → legacy DOM そのまま (旧コード完全実行、pixel diff 0 を保証)
-  //   override   → grid layout に切替 (P4-C-2-d で実装、本コミットでは throw)
-  if (!isDefaultResolvedPlacement(options.blockPlacements, 'FORMAL_STANDARD')) {
-    // P4-C-2-d で実装予定。それまで override 経路は明示的に未実装エラーを返す。
-    // (silent fall-through だと grid 配置が無視される latent bug になるため throw)
-    throw new Error(
-      'FORMAL_STANDARD override branch is not yet implemented (P4-C-2-d). ' +
-        'Pass blockPlacements that resolves to template default for now.'
-    );
-  }
+  //   override   → block-by-block extraction + dual anchor grid (P4-C-2-d)
+  const isDefault = isDefaultResolvedPlacement(options.blockPlacements, 'FORMAL_STANDARD');
 
-  // === Legacy/default branch — 既存 DOM 完全保持 (Codex P4-C-2 global concern) ===
   const labels = getDocumentLabels(doc.type);
   const sealSizePx = getSealSizePx(options.sealSize ?? DEFAULT_SEAL_SIZE, 'FORMAL_STANDARD');
   const backgroundCss = getBackgroundCss(options.backgroundDesign, options.backgroundImageDataUrl);
   const backgroundHtml = getBackgroundHtml(options.backgroundDesign, options.backgroundImageDataUrl);
   const themeCss = getFormalThemeCss(FORMAL_COLORS);
   const css = getFormalStandardCss(sealSizePx);
+
+  // === Block placement decisions (legacy / override) ===
+  //
+  // legacy branch: 旧 DOM そのまま。block-layout-* / override CSS は一切出力しない。
+  //   全 inject points (`${overrideCss}` / `${blockLayoutTopHtml}` /
+  //   `${blockLayoutBottomHtml}`) は空文字。テンプレート whitespace に変化なし
+  //   → fixture diff 0 を維持。
+  // override branch: block-by-block extraction で legacy DOM から moved block を
+  //   抜き、dual anchor grid (header 後 / totals 後) に配置。BLOCK_LAYOUT_GRID_CSS
+  //   は実際に grid を出す時のみ inject。
+  let issuerHtml: string;
+  let infoBoxHtml: string;
+  let notesHtml: string;
+  let blockLayoutTopHtml = '';
+  let blockLayoutBottomHtml = '';
+  let overrideCss = '';
+
+  if (isDefault) {
+    issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot);
+    infoBoxHtml = renderInfoBox(doc, sensitiveSnapshot);
+    notesHtml = renderNotesSection(doc);
+  } else {
+    const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.FORMAL_STANDARD;
+    const perBlock = computePerBlockStatus(options.blockPlacements, templateDefault);
+
+    // Legacy positions: untouched-at-default block は legacy DOM 内にそのまま残す。
+    //   companyStamp untouched → header に seal 残す
+    //   bankAccount untouched   → info-box に bank 残す (showBankInfo 時のみ)
+    //   remarks untouched       → notes-section をそのまま出力
+    issuerHtml = renderIssuerHeader(
+      doc,
+      sensitiveSnapshot,
+      /*includeSeal=*/perBlock.companyStamp.isDefault
+    );
+    const rowsHtml = renderInfoBoxRows(
+      doc,
+      sensitiveSnapshot,
+      /*includeBank=*/perBlock.bankAccount.isDefault
+    );
+    infoBoxHtml = renderInfoBoxFromRows(rowsHtml);
+    notesHtml = perBlock.remarks.isDefault ? renderNotesSection(doc) : '';
+
+    // Grid placement: moved block (isDefault=false かつ position !== 'hidden') のみ
+    // grid セルへ配置。hidden / untouched は空 fragment を渡し placeBlocks で skip。
+    // estimate では showBankInfo=false のため bank fragment は常に空 (UX: 見積で
+    // bank 設定を弄っても見た目は変わらない)。
+    const renderedBlocks: RenderedBlocks = {
+      bankAccount: !perBlock.bankAccount.isDefault && labels.showBankInfo
+        ? renderBankFragment(sensitiveSnapshot)
+        : '',
+      companyStamp: !perBlock.companyStamp.isDefault
+        ? renderSealFragment(doc.issuerSnapshot)
+        : '',
+      remarks: !perBlock.remarks.isDefault
+        ? renderNotesFragment(doc)
+        : '',
+    };
+
+    const cells = placeBlocks(options.blockPlacements, renderedBlocks);
+    const topRegion = renderBlockLayoutTop(cells);
+    const bottomRegion = renderBlockLayoutBottom(cells);
+
+    // Inject points を「空ならゼロ文字、出力時のみ前置改行+indent」にすることで
+    // legacy 時の whitespace を完全保持する (pixel diff 0 ゲート保護)。
+    blockLayoutTopHtml = topRegion ? `\n    ${topRegion}` : '';
+    blockLayoutBottomHtml = bottomRegion ? `\n    ${bottomRegion}` : '';
+
+    if (topRegion || bottomRegion) {
+      overrideCss = `
+    ${BLOCK_LAYOUT_GRID_CSS}`;
+    }
+  }
 
   // Title
   const titleHtml = renderTitle(doc);
@@ -784,12 +867,6 @@ export function generateFormalStandardTemplate(
         </div>
   `;
 
-  // Issuer block (with seal beside info)
-  const issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot);
-
-  // Info box (subject, period, bank info)
-  const infoBoxHtml = renderInfoBox(doc, sensitiveSnapshot);
-
   // Total amount box
   const totalBoxHtml = `
     <div class="total-amount-box">
@@ -804,9 +881,6 @@ export function generateFormalStandardTemplate(
   // Totals section
   const totalsHtml = renderTotalsSection(doc);
 
-  // Notes section
-  const notesHtml = renderNotesSection(doc);
-
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -815,7 +889,7 @@ export function generateFormalStandardTemplate(
   <style>
     ${css}
     ${themeCss}
-    ${backgroundCss}
+    ${backgroundCss}${overrideCss}
   </style>
 </head>
 <body>
@@ -835,7 +909,7 @@ export function generateFormalStandardTemplate(
         ${metaHtml}
         ${issuerHtml}
       </div>
-    </div>
+    </div>${blockLayoutTopHtml}
 
     <!-- Info box (subject, period, bank info) -->
     ${infoBoxHtml}
@@ -847,7 +921,7 @@ export function generateFormalStandardTemplate(
     ${tableHtml}
 
     <!-- Totals -->
-    ${totalsHtml}
+    ${totalsHtml}${blockLayoutBottomHtml}
 
     <!-- Notes -->
     ${notesHtml}
