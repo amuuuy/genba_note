@@ -15,7 +15,7 @@
  * Supports both estimate and invoice document types via getDocumentLabels().
  */
 
-import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { TemplateOptions } from './templateRegistry';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from '@/pdf/types';
 import { getBackgroundCss, getBackgroundHtml } from '@/pdf/backgroundDesigns';
@@ -443,15 +443,17 @@ function buildIssuerInfoLines(
 
 /**
  * Issuer info text (seal \u3092\u542B\u307E\u306A\u3044 issuer info \u30C6\u30AD\u30B9\u30C8) \u2014 SPEC \u00A77.2.5.
- * Returns `<div class="issuer-info">` wrapper or '' if no info lines.
- * Used by override branch when seal is moved (header without seal needs only info text).
+ *
+ * Returns `<div class="issuer-info">` wrapper. lines \u304C\u7A7A\u3067\u3082 wrapper \u3092\u51FA\u529B\u3059\u308B
+ * (legacy \u4E92\u63DB: header-issuer-block \u5185\u3067 seal \u3060\u3051\u304C\u6B8B\u308B\u30B1\u30FC\u30B9\u306E empty issuer-info)\u3002
+ * doc / sensitiveSnapshot \u3092\u53D6\u308B\u306E\u306F buildIssuerInfoLines \u304C doc.type / \u767B\u9332\u756A\u53F7\u5224\u5B9A\u306B
+ * \u5FC5\u8981\u306A\u305F\u3081 (6 \u30C6\u30F3\u30D7\u30EC\u6A2A\u65AD\u3067\u540C\u3058\u5951\u7D04)\u3002
  */
 function renderIssuerInfoText(
   doc: DocumentWithTotals,
   sensitiveSnapshot: SensitiveIssuerSnapshot | null
 ): string {
   const lines = buildIssuerInfoLines(doc, sensitiveSnapshot);
-  if (lines.length === 0) return '';
   return `<div class="issuer-info">
           ${lines.join('\n          ')}
         </div>`;
@@ -459,10 +461,12 @@ function renderIssuerInfoText(
 
 /**
  * Seal \u5358\u72EC fragment (`<div class="issuer-seal">` \u5358\u4F4D) \u2014 SPEC \u00A77.2.5.
+ *
  * sealSizePx \u306F CSS \u7D4C\u7531\u3067\u9069\u7528\u3055\u308C\u308B\u305F\u3081 fragment \u51FA\u529B\u306B\u306F\u542B\u3081\u306A\u3044\u3002
+ * issuerSnapshot.sealImageBase64 \u306E\u307F\u3092\u53C2\u7167\u3059\u308B\u305F\u3081\u3001\u5F15\u6570\u3082 IssuerSnapshot \u306B
+ * \u9650\u5B9A\u3059\u308B (\u4F9D\u5B58\u6700\u5C0F)\u3002
  */
-function renderSealFragment(doc: DocumentWithTotals): string {
-  const { issuerSnapshot } = doc;
+function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
   const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
   if (!hasSeal) return '';
   return `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="\u5370\u5F71" class="seal-image" /></div>`;
@@ -518,40 +522,42 @@ function renderNotesFragment(doc: DocumentWithTotals): string {
 /**
  * Render issuer block with seal BESIDE info (flexbox).
  *
- * Legacy branch composition: buildIssuerInfoLines + renderSealFragment.
+ * Legacy branch composition: renderIssuerInfoText + renderSealFragment.
  * Override branch can call renderIssuerHeader(includeSeal=false) to render
  * the same wrapper without seal.
  */
 function renderIssuerBlock(
   doc: DocumentWithTotals,
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null,
-  sealSizePx: number
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
 ): string {
-  return renderIssuerHeader(doc, sensitiveSnapshot, sealSizePx, /*includeSeal=*/true);
+  return renderIssuerHeader(doc, sensitiveSnapshot, /*includeSeal=*/true);
 }
 
 /**
  * Compose `.header-issuer-block` with optional seal inclusion.
- * `includeSeal=false` is used by override branch when seal is moved out.
+ *
+ * `includeSeal=false` is used by override branch when seal is moved out of
+ * its default header position. Wraps the canonical primitives:
+ * renderIssuerInfoText (always emitted) + renderSealFragment (conditional).
+ *
+ * "lines が空 AND seal も無い" ケースでは block 全体を省略する (legacy 互換)。
  */
 function renderIssuerHeader(
   doc: DocumentWithTotals,
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
-  _sealSizePx: number,
   includeSeal: boolean
 ): string {
   const infoLines = buildIssuerInfoLines(doc, sensitiveSnapshot);
-  const sealHtml = includeSeal ? renderSealFragment(doc) : '';
+  const sealHtml = includeSeal ? renderSealFragment(doc.issuerSnapshot) : '';
 
   if (infoLines.length === 0 && sealHtml === '') {
     return '';
   }
 
+  const issuerInfoHtml = renderIssuerInfoText(doc, sensitiveSnapshot);
   return `
       <div class="header-issuer-block">
-        <div class="issuer-info">
-          ${infoLines.join('\n          ')}
-        </div>
+        ${issuerInfoHtml}
         ${sealHtml}
       </div>
   `;
@@ -779,7 +785,7 @@ export function generateFormalStandardTemplate(
   `;
 
   // Issuer block (with seal beside info)
-  const issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot, sealSizePx);
+  const issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot);
 
   // Info box (subject, period, bank info)
   const infoBoxHtml = renderInfoBox(doc, sensitiveSnapshot);
