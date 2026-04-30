@@ -639,32 +639,112 @@ export function useDocumentPreviewHtml(params: {
 
 > ⚠️ **`app/document/preview.tsx` の refactor 規模注意**: 単純な hook 差し替えではなく、責務分解（previewData parsing / settings 解決 / template picker / 共有 state を残し、HTML 生成と依存解決を hook へ委譲）を伴う。1 行説明だが工数として独立したフェーズ（§11 P3）を確保している。
 
-### 7.2 6 テンプレ共通の grid ラッパー
+### 7.2 grid ラッパー設計 (block-by-block override + dual anchor)
+
+#### 7.2.1 設計原則 (P4-C-2-d で確定、Yuma 親友ファースト判断)
+
+**block ごとに独立判定**: ユーザが触ったブロックだけ動かし、untouched ブロックは旧 DOM 位置を維持する。これによりプリセット 1 つを選んでも、override 対象でないブロックは見た目が変わらず予測可能。
+
+```
+例: ユーザが💰振込先を目立たせる (bankAccount のみ default から動く) を選択
+  → 振込先: 旧 info-box 内から抜き出して bottom-center cell へ
+  → 印影: 旧 header 内の位置のまま (移動なし)
+  → 備考: 旧 footer の位置のまま (移動なし)
+```
+
+**dual anchor region**: テンプレの既存縦フロー (header → main → totals → notes) と単一 3x2 grid は両立しない。代わりに **top region** と **bottom region** に分割し、各 generator が物理的に適切な位置に grid を 2 つ挿入する。
+
+```
+[title]
+[header (issuer + 印影 default 位置)]
+[block-layout-top]      ← top-* override されたブロックがここに集合
+  ├─ cell-top-left
+  ├─ cell-top-center
+  └─ cell-top-right
+[info-box (bank が default 位置なら表示、override なら抜く)]
+[table]
+[totals]
+[block-layout-bottom]   ← bottom-* override されたブロックがここに集合
+  ├─ cell-bottom-left
+  ├─ cell-bottom-center
+  └─ cell-bottom-right
+[footer / notes (notes が default 位置なら表示)]
+```
+
+#### 7.2.2 実装パターン
+
+各 generator は以下のロジックで動作する:
+
+1. `resolveBlockPlacements()` で `Required<BlockPlacements>` を取得
+2. `isDefaultResolvedPlacement()` で全 default 一致かチェック
+   - 一致 → **legacy branch** (旧 DOM 完全実行、本セクションのコード一切走らせない)
+   - 不一致 → **override branch** (block-by-block 判定で部分 grid 化)
+3. override branch で各ブロック `kind in {bankAccount, companyStamp, remarks}` ごとに:
+   - `placements[kind] === templateDefault[kind]` なら **untouched** → 旧位置に表示する HTML を生成
+   - 異なるなら **moved** → 旧位置から抜いて grid セル fragment に追加
+4. top-row override がある block を `block-layout-top` (top-left/center/right) grid に
+5. bottom-row override がある block を `block-layout-bottom` (bottom-left/center/right) grid に
+6. `hidden` の block は output に含めない (旧位置からも grid セルからも除外)
+
+#### 7.2.3 HTML 構造
 
 ```html
-<div class="block-layout-grid">
-  <div class="cell cell-top-left" data-position="top-left">
-    {{topLeftBlocks}}
-  </div>
-  <div class="cell cell-top-center" data-position="top-center">
-    {{topCenterBlocks}}
-  </div>
-  <!-- ... 6 セル全部 ... -->
+<!-- top region (override に top-* がある時のみ出力) -->
+<div class="block-layout-top">
+  <div class="block-layout-cell cell-top-left" data-position="top-left">{{...}}</div>
+  <div class="block-layout-cell cell-top-center" data-position="top-center">{{...}}</div>
+  <div class="block-layout-cell cell-top-right" data-position="top-right">{{...}}</div>
+</div>
+
+<!-- bottom region (override に bottom-* がある時のみ出力) -->
+<div class="block-layout-bottom">
+  <div class="block-layout-cell cell-bottom-left" data-position="bottom-left">{{...}}</div>
+  <div class="block-layout-cell cell-bottom-center" data-position="bottom-center">{{...}}</div>
+  <div class="block-layout-cell cell-bottom-right" data-position="bottom-right">{{...}}</div>
 </div>
 ```
 
-CSS:
+CSS (override branch でのみ inject、legacy branch では一切出力しない、namespace 化で既存 selector と衝突回避):
+
 ```css
-.block-layout-grid {
+.block-layout-top,
+.block-layout-bottom {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto auto;
   gap: 0;
 }
-.cell { /* セルごとのマージン制御 */ }
+.block-layout-cell {
+  /* セルごとの inner margin は内部 fragment が制御 */
+}
+.block-layout-cell.cell-top-left, .block-layout-cell.cell-bottom-left { text-align: left; }
+.block-layout-cell.cell-top-center, .block-layout-cell.cell-bottom-center { text-align: center; }
+.block-layout-cell.cell-top-right, .block-layout-cell.cell-bottom-right { text-align: right; }
 ```
 
-各テンプレ generator 内で `Required<BlockPlacements>` を受け取り、各ブロックを対応する grid セルに射影する純関数 `placeBlocks(placements, rendered: { bank, seal, notes })` を共有ヘルパとして実装。
+#### 7.2.4 共有 helper
+
+- `src/pdf/blockPlacementLayout.ts`:
+  - `placeBlocks(placements, rendered)`: position → cell マッピング (`hidden` 省略、same-cell 順序固定)
+  - `renderBlockLayoutTop(cells)`: top region の HTML 出力
+  - `renderBlockLayoutBottom(cells)`: bottom region の HTML 出力
+  - `BLOCK_LAYOUT_GRID_CSS`: namespace 化された CSS
+
+各 generator は本 helper を **override branch でのみ** 使い、legacy branch は旧コードを完全実行する (default path に grid wrapper や CSS が漏れない、SPEC §5.4 pixel diff 0 ゲートを保護)。
+
+#### 7.2.5 untouched block の旧位置保持パターン (block-by-block extraction)
+
+各 generator で「block を含む旧 helper」と「block を抜いた版」の二重実装は避け、**断片プリミティブ**に分解する:
+
+- `renderBankFragment(snapshot)` — bank info 単独 fragment (info-row level)
+- `renderSealFragment(issuer)` — seal 単独 fragment (`<div class="issuer-seal">` 単位)
+- `renderNotesFragment(doc)` — notes 単独 fragment (notes-section 単位)
+- `renderInfoBoxRows(doc, snapshot, includeBank: boolean)` — info box の rows 構築 (bank を含むかフラグで切替)
+- `renderIssuerInfoText(issuer)` — seal を含まない issuer info テキスト
+- 旧 `renderInfoBox` / `renderIssuerBlock` / `renderNotesSection` は legacy branch で従来通り合成
+
+これにより:
+- legacy 合成 (= 旧コード再現) と override 合成 (= 必要部分だけ抜く) で **同じ断片関数を共有**
+- 将来 P4-C-3+ で 6 テンプレ展開する時も同じ pattern を適用可能
 
 ---
 
