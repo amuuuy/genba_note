@@ -92,7 +92,7 @@ function compareOrUpdateFixture(name: string, generated: string): void {
 function generateForFixture(
   doc: DocumentWithTotals,
   sensitive: SensitiveIssuerSnapshot | null,
-  blockPlacements?: BlockPlacements
+  blockPlacements?: BlockPlacements | null
 ): string {
   const result = generateHtmlTemplate({
     document: doc,
@@ -379,20 +379,43 @@ describe('FORMAL_STANDARD override snapshot (P4-C-2-d)', () => {
 });
 
 // === Default-equivalent inputs unconditionally route to legacy branch ===
-// Codex iter1 notes_for_next_review #4: default-equivalent inputs (null / partial /
-// full default object) は generator level でも確実に legacy branch を通り、
-// override CSS / grid wrapper を一切 emit しないことを担保する。
+// Codex iter1 notes_for_next_review #4: default-equivalent inputs は generator
+// level でも確実に legacy branch を通り、override CSS / grid wrapper を一切
+// emit しないことを担保する。tri-state input (undefined / null / partial /
+// full default object) を網羅的にカバー。
 describe('FORMAL_STANDARD default-equivalent inputs route to legacy (P4-C-2-d)', () => {
-  it('null blockPlacements produces identical HTML to estimate-default fixture', () => {
+  it('undefined caller override + doc.blockPlacements=null → legacy (saved-doc fallback path)', () => {
+    // caller が blockPlacements を渡さない → resolveBlockPlacements は doc.blockPlacements
+    // (null) を見て template default に倒す。SPEC §3.4 lazy resolve の baseline path。
     const doc = makeFormalDoc({
       type: 'estimate',
       issuerOverrides: { sealImageBase64: TEST_SEAL },
     });
     const sensitive = createTestSensitiveSnapshot();
-    const expected = generateForFixture(doc, sensitive); // no blockPlacements arg
+    const generated = generateForFixture(doc, sensitive); // omit blockPlacements arg
     const fixturePath = path.join(FIXTURE_DIR, 'estimate-default.html');
     const fixture = fs.readFileSync(fixturePath, 'utf-8');
-    expect(normalizeHtmlForSnapshot(expected)).toBe(normalizeHtmlForSnapshot(fixture));
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('explicit-null caller override resets doc.blockPlacements to template default (tri-state reset path)', () => {
+    // SPEC §3.3.1 tri-state: caller が explicit null を渡したら、document に保存された
+    // override を **無視** して template default に倒す。doc に non-default override が
+    // 保存されていても caller=null なら legacy 出力になることを担保する。
+    const doc = makeFormalDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    // doc に non-default override を持たせる (通常なら override branch を呼ぶ状態)
+    doc.blockPlacements = { bankAccount: 'bottom-right' };
+    const sensitive = createTestSensitiveSnapshot();
+    const generated = generateForFixture(doc, sensitive, null); // explicit null reset
+    const fixturePath = path.join(FIXTURE_DIR, 'estimate-default.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+    // override CSS / grid wrapper が emit されないことも確認
+    expect(generated).not.toContain('block-layout-top');
+    expect(generated).not.toContain('block-layout-bottom');
   });
 
   it('partial-matching-default object produces identical HTML to legacy', () => {
