@@ -109,10 +109,15 @@ function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
 
 /**
  * Bank info 単独 fragment (table-row level) — SPEC §7.2.5。
+ *
  * 振込先情報を `<tr>...</tr>` で返す。情報無しは ''。
- * legacy では info-block-table 内の rows の一つとして、override では grid セルに
- * 単独配置する (grid セル内の単独 <tr> は <table> wrapper が無いため visually
- * fall-back するが、`.info-label` / `.info-value` の inline-ish styling で意味は伝わる)。
+ * **legacy 合成専用**: info-block-table 内の rows の一つとして組み立てられる。
+ *
+ * **override 経路で grid cell に投入する場合は使わないこと**: bare `<tr>` を
+ * `<div class="block-layout-cell">` の中に入れると HTML が invalid になり
+ * (browser parser が tr を drop / reparent する)、`.info-block-table tr` の
+ * styling も適用されない (Codex P4-C-3 review iter1 blocking 反映)。
+ * override 経路では `renderBankBlockForCell()` で table wrapper を付けて使う。
  */
 function renderBankFragment(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
   if (!hasBankInfo(sensitiveSnapshot)) return '';
@@ -314,7 +319,8 @@ function renderInfoBlockRows(
  * 空 rows の場合は wrapper 自体も省略 (rows が無いのに枠だけ出すのを防ぐ)。
  *
  * legacy / override 両 branch で wrapper の whitespace を完全一致させるため、
- * この共通 helper 経由で組み立てる。
+ * この共通 helper 経由で組み立てる。override 経路で bank 単独 fragment を grid
+ * cell に投入する際にも `renderBankBlockForCell()` 経由で同じ wrapper を再利用する。
  */
 function renderInfoBlockFromRows(rowsHtml: string): string {
   if (rowsHtml === '') return '';
@@ -323,6 +329,22 @@ function renderInfoBlockFromRows(rowsHtml: string): string {
       ${rowsHtml}
     </table>
   `;
+}
+
+/**
+ * Bank fragment を grid cell に投入するためのラッピング helper。
+ *
+ * row-level fragment (`<tr>...</tr>`) を `<table class="info-block-table">` で
+ * 包み、struct 的に有効な HTML として `<div class="block-layout-cell">` の中に
+ * 配置できる形にする。override branch のみで使う。
+ *
+ * Codex P4-C-3 review iter1 blocking 反映: bare `<tr>` を grid cell に直接置くと
+ * browser parser が tr を drop / reparent し、`.info-block-table tr` の styling も
+ * 失われる。table wrapper を必ず通すことで構造的妥当性と styling 一貫性を担保する。
+ */
+function renderBankBlockForCell(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  const bankRow = renderBankFragment(sensitiveSnapshot);
+  return renderInfoBlockFromRows(bankRow);
 }
 
 /**
