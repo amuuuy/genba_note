@@ -226,6 +226,10 @@ export default function DocumentEditScreen() {
       },
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
+      // preview に伝播させる。これがないと保存済み override が preview で
+      // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
+      blockPlacements: state.blockPlacements,
     };
 
     // Navigate to preview with the document data
@@ -233,7 +237,7 @@ export default function DocumentEditScreen() {
       pathname: '/document/preview',
       params: { previewData: JSON.stringify(previewDocument) },
     });
-  }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot]);
+  }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot, state.blockPlacements]);
 
   // Handle save as draft (existing save behavior)
   const handleSaveDraft = useCallback(async () => {

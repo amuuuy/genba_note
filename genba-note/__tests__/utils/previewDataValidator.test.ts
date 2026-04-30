@@ -108,4 +108,33 @@ describe('validatePreviewDocument — blockPlacements normalization (SPEC §4.2)
     });
     expect(result!.blockPlacements).toEqual({ bankAccount: 'top-left' });
   });
+
+  // codex P3 final review iter1 blocking 回帰テスト:
+  // edit 画面 → previewData → validatePreviewDocument の経路で
+  // blockPlacements が脱落しないことを担保する。
+  // (app/document/[id].tsx の handlePreview で
+  //  blockPlacements: state.blockPlacements を JSON に載せる修正と組み合わせ)
+  describe('end-to-end serialization through JSON.stringify (edit→preview path)', () => {
+    it('preserves partial override across JSON round-trip', () => {
+      const editStateLike = {
+        ...baseInput,
+        blockPlacements: { bankAccount: 'top-left', companyStamp: 'bottom-right' },
+      };
+      const serialized = JSON.stringify(editStateLike);
+      const parsed = JSON.parse(serialized);
+      const result = validatePreviewDocument(parsed);
+      expect(result).not.toBeNull();
+      expect(result!.blockPlacements).toEqual({
+        bankAccount: 'top-left',
+        companyStamp: 'bottom-right',
+      });
+    });
+
+    it('preserves null override across JSON round-trip', () => {
+      const editStateLike = { ...baseInput, blockPlacements: null };
+      const parsed = JSON.parse(JSON.stringify(editStateLike));
+      const result = validatePreviewDocument(parsed);
+      expect(result!.blockPlacements).toBeNull();
+    });
+  });
 });
