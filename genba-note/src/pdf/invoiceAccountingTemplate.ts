@@ -23,7 +23,7 @@
  * - No "border only" design - all labels have black background
  */
 
-import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { SealSize, BackgroundDesign } from './types';
 import type { TemplateOptions } from './templates/templateRegistry';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from './types';
@@ -86,27 +86,102 @@ function renderTitleWithMeta(doc: DocumentWithTotals): string {
 }
 
 
+// === Fragment primitives (P4-C-3, SPEC §7.2.5) ===
+//
+// 各 generator が「block を含む旧 helper」と「block を抜いた版」を二重実装する
+// のを避けるため、断片プリミティブに分解する。legacy 合成 (= 旧コード再現) と
+// override 合成 (= 必要部分だけ抜く) で **同じ断片関数を共有** する。
+//
+// FORMAL_STANDARD と概念的に同じ pattern だが、ACCOUNTING の seal は issuer-block
+// 内に inline で挿入される構造のため、buildIssuerInfoLines は includeSeal フラグ
+// を取る (FORMAL では seal が flexbox の隣で常時別レンダリングだったのに対し、
+// ACCOUNTING は line array の mid-position に挿入される)。
+
 /**
- * Render issuer block with seal placed below phone number
- * Now includes invoice registration number from sensitiveSnapshot
+ * Seal 単独 fragment (`<div class="issuer-seal">` 単位) — SPEC §7.2.5。
+ * issuerSnapshot.sealImageBase64 のみ参照 (依存最小)。
  */
-function renderIssuerBlock(
+function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
+  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
+  if (!hasSeal) return '';
+  return `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`;
+}
+
+/**
+ * Bank info 単独 fragment (table-row level) — SPEC §7.2.5。
+ * 振込先情報を `<tr>...</tr>` で返す。情報無しは ''。
+ * legacy では info-block-table 内の rows の一つとして、override では grid セルに
+ * 単独配置する (grid セル内の単独 <tr> は <table> wrapper が無いため visually
+ * fall-back するが、`.info-label` / `.info-value` の inline-ish styling で意味は伝わる)。
+ */
+function renderBankFragment(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  if (!hasBankInfo(sensitiveSnapshot)) return '';
+
+  const bankLines: string[] = [];
+  if (sensitiveSnapshot!.bankName) {
+    let bankLine = escapeHtml(sensitiveSnapshot!.bankName);
+    if (sensitiveSnapshot!.branchName) {
+      bankLine += ` ${escapeHtml(sensitiveSnapshot!.branchName)}`;
+    }
+    if (sensitiveSnapshot!.accountType) {
+      bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountType)}`;
+    }
+    if (sensitiveSnapshot!.accountNumber) {
+      bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountNumber)}`;
+    }
+    bankLines.push(bankLine);
+  }
+  if (sensitiveSnapshot!.accountHolderName) {
+    bankLines.push(escapeHtml(sensitiveSnapshot!.accountHolderName));
+  }
+
+  return `
+      <tr>
+        <td class="info-label">振込先</td>
+        <td class="info-value">${bankLines.join('<br>')}</td>
+      </tr>
+    `;
+}
+
+/**
+ * Notes 単独 fragment (notes-section 単位) — SPEC §7.2.5.
+ * doc.notes が null/空でも legacy 互換のため空 box を出力する (旧挙動凍結)。
+ */
+function renderNotesFragment(doc: DocumentWithTotals): string {
+  return `
+    <div class="formal-notes-section">
+      <div class="notes-title">備考欄</div>
+      <div class="notes-content">${doc.notes ? escapeHtml(doc.notes) : ''}</div>
+    </div>
+  `;
+}
+
+/**
+ * Build issuer info lines. ACCOUNTING の seal は issuer-block 内に inline 挿入
+ * されるため、includeSeal フラグで seal 行を含めるかを制御する (FORMAL は seal
+ * が flex 隣のため常に別レンダリング)。
+ *
+ * line order: companyName → postal → address1 → address2 → tel → [seal] →
+ *             registration → contact
+ *
+ * `includeSeal=false` は override branch で seal が moved/hidden の時に使う
+ * (issuer-block から seal だけ抜いて、grid セルへ配置するため)。
+ */
+function buildIssuerInfoLines(
   doc: DocumentWithTotals,
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null
-): string {
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null,
+  includeSeal: boolean
+): string[] {
   const { issuerSnapshot } = doc;
   const labels = getDocumentLabels(doc.type);
-  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
   const hasContact = !!issuerSnapshot.contactPerson;
 
   const lines: string[] = [];
 
-  // Company name
   if (issuerSnapshot.companyName) {
     lines.push(`<div class="issuer-company">${escapeHtml(issuerSnapshot.companyName)}</div>`);
   }
 
-  // Parse address into postal code and lines
   const parsedAddress = parseAddressWithPostalCode(issuerSnapshot.address);
   if (parsedAddress.postalCode) {
     lines.push(`<div class="issuer-postal">${escapeHtml(parsedAddress.postalCode)}</div>`);
@@ -118,25 +193,62 @@ function renderIssuerBlock(
     lines.push(`<div class="issuer-address">${escapeHtml(parsedAddress.addressLine2)}</div>`);
   }
 
-  // TEL
   if (issuerSnapshot.phone) {
     lines.push(`<div class="issuer-tel">TEL: ${escapeHtml(issuerSnapshot.phone)}</div>`);
   }
 
-  // Seal image (placed below phone number)
-  if (hasSeal) {
-    lines.push(`<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`);
+  if (includeSeal) {
+    const sealHtml = renderSealFragment(issuerSnapshot);
+    if (sealHtml) {
+      lines.push(sealHtml);
+    }
   }
 
-  // Invoice registration number (登録番号) - only for invoice (適格請求書)
   if (labels.showRegistrationNumber && sensitiveSnapshot?.invoiceNumber) {
     lines.push(`<div class="issuer-registration">登録番号: ${escapeHtml(sensitiveSnapshot.invoiceNumber)}</div>`);
   }
 
-  // Contact person (separate from seal)
   if (hasContact) {
     lines.push(`<div class="issuer-contact">担当: ${escapeHtml(issuerSnapshot.contactPerson!)}</div>`);
   }
+
+  return lines;
+}
+
+/**
+ * Issuer info text (seal を含まない issuer info) — SPEC §7.2.5。
+ *
+ * override branch で seal が moved/hidden された時に header 相当部分 (issuer block)
+ * を seal 抜きでレンダリングするための primitive。ACCOUNTING の場合は
+ * `<div class="issuer-block">` wrapper の中に seal を含まない lines を join する。
+ *
+ * lines が空の場合は wrapper も空文字を返す (ACCOUNTING legacy 互換: 元の
+ * renderIssuerBlock は lines.length === 0 で空を返す)。
+ */
+function renderIssuerInfoText(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot, /*includeSeal=*/false);
+  if (lines.length === 0) return '';
+  return `
+    <div class="issuer-block">
+      ${lines.join('\n')}
+    </div>
+  `;
+}
+
+/**
+ * Render issuer block with seal placed below phone number — legacy composition.
+ *
+ * Internally delegates to buildIssuerInfoLines(includeSeal=true) で seal を
+ * inline 挿入。lines が空なら空文字を返す (legacy 互換)。
+ */
+function renderIssuerBlock(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot, /*includeSeal=*/true);
 
   if (lines.length === 0) {
     return '';
@@ -150,12 +262,19 @@ function renderIssuerBlock(
 }
 
 /**
- * Render info block with black-background labels
- * Contains: Subject, Due date, Bank info
+ * info-block の rows 構築 (bank を含むかフラグで切替) — SPEC §7.2.5.
+ *
+ * legacy 経路 (renderInfoBlock) は includeBank=true で呼び従来通り bank 行を含む。
+ * override 経路で bank が moved/hidden の場合は includeBank=false で呼び、
+ * subject/period 行のみ返す。bank fragment は別途 grid セルに配置される。
+ *
+ * showBankInfo=false (estimate) の場合、includeBank=true でも bank は含まれない
+ * (テンプレ仕様の上書き)。
  */
-function renderInfoBlock(
+function renderInfoBlockRows(
   doc: DocumentWithTotals,
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null,
+  includeBank: boolean
 ): string {
   const labels = getDocumentLabels(doc.type);
   const rows: string[] = [];
@@ -181,43 +300,42 @@ function renderInfoBlock(
     `);
   }
 
-  // Bank info (振込先) - only for invoice
-  if (labels.showBankInfo && hasBankInfo(sensitiveSnapshot)) {
-    const bankLines: string[] = [];
-    if (sensitiveSnapshot!.bankName) {
-      let bankLine = escapeHtml(sensitiveSnapshot!.bankName);
-      if (sensitiveSnapshot!.branchName) {
-        bankLine += ` ${escapeHtml(sensitiveSnapshot!.branchName)}`;
-      }
-      if (sensitiveSnapshot!.accountType) {
-        bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountType)}`;
-      }
-      if (sensitiveSnapshot!.accountNumber) {
-        bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountNumber)}`;
-      }
-      bankLines.push(bankLine);
-    }
-    if (sensitiveSnapshot!.accountHolderName) {
-      bankLines.push(escapeHtml(sensitiveSnapshot!.accountHolderName));
-    }
-
-    rows.push(`
-      <tr>
-        <td class="info-label">振込先</td>
-        <td class="info-value">${bankLines.join('<br>')}</td>
-      </tr>
-    `);
+  // Bank info (振込先) - only for invoice, gated by includeBank for override branch
+  if (includeBank && labels.showBankInfo) {
+    const bankRow = renderBankFragment(sensitiveSnapshot);
+    if (bankRow) rows.push(bankRow);
   }
 
-  if (rows.length === 0) {
-    return '';
-  }
+  return rows.join('');
+}
 
+/**
+ * Wrap `renderInfoBlockRows()` 出力で `<table class="info-block-table">` を作る。
+ * 空 rows の場合は wrapper 自体も省略 (rows が無いのに枠だけ出すのを防ぐ)。
+ *
+ * legacy / override 両 branch で wrapper の whitespace を完全一致させるため、
+ * この共通 helper 経由で組み立てる。
+ */
+function renderInfoBlockFromRows(rowsHtml: string): string {
+  if (rowsHtml === '') return '';
   return `
     <table class="info-block-table">
-      ${rows.join('')}
+      ${rowsHtml}
     </table>
   `;
+}
+
+/**
+ * Render info block — legacy composition.
+ *
+ * Internally delegates to renderInfoBlockRows(includeBank=true) + renderInfoBlockFromRows.
+ */
+function renderInfoBlock(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const rowsHtml = renderInfoBlockRows(doc, sensitiveSnapshot, /*includeBank=*/true);
+  return renderInfoBlockFromRows(rowsHtml);
 }
 
 /**
@@ -326,15 +444,13 @@ function renderTaxBreakdownSection(doc: DocumentWithTotals): string {
 }
 
 /**
- * Render notes section
+ * Render notes section — legacy composition.
+ *
+ * Delegates to renderNotesFragment so the box markup is shared with override
+ * branch (where notes is placed in a grid cell at moved position).
  */
 function renderNotesSection(doc: DocumentWithTotals): string {
-  return `
-    <div class="formal-notes-section">
-      <div class="notes-title">備考欄</div>
-      <div class="notes-content">${doc.notes ? escapeHtml(doc.notes) : ''}</div>
-    </div>
-  `;
+  return renderNotesFragment(doc);
 }
 
 // === CSS Styles ===
