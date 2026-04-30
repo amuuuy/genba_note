@@ -19,29 +19,24 @@
 /**
  * Normalize an HTML string for snapshot comparison.
  *
- * 正規化:
- *   1. <!-- ... --> 形式のコメントを除去 (改行を含むコメントも対応)
- *   2. **改行を含む** タグ間ホワイトスペース (= cosmetic な改行 + インデント) のみ除去
- *   3. 文字列両端を trim
+ * 正規化は **最小限** に留める方針 (Codex P4-C-1 review iter2 blocking 反映):
+ *   1. <!-- ... --> 形式のコメントを除去 (rendering に影響しない、純粋に cosmetic)
+ *   2. 文字列両端を trim (caller の保存形式の揺れ吸収)
  *
- * **保持されるもの (rendering-significant)**:
- *   - inline sibling 間の半角空白: `<span>a</span> <span>b</span>` ≠ `<span>a</span><span>b</span>`
- *     (前者は inline 描画で半角空白の隙間が出る)
- *   - テキストノード内空白 (全角スペース「見　積　書」等)
- *   - 属性内の空白 (class="a b c")
+ * **inter-tag whitespace は触らない**。HTML の whitespace 解釈は文脈依存
+ * (block / inline / inline-text 境界) で、`<span>a</span>\n<span>b</span>` も
+ * inline 文脈では半角空白として描画される。一見 cosmetic に見える改行 +
+ * インデントも rendering に影響し得るため、削除すると pixel diff 0 ゲートが
+ * false negative になる。
  *
- * **除去されるもの (cosmetic)**:
- *   - HTML コメント (改行を含む multi-line も)
- *   - 改行を含むタグ間ホワイトスペース (block 整形のための改行 + インデント)
- *
- * Codex P4-C-1 review iter1 blocking 反映: 全 inter-tag whitespace を消すと
- * inline sibling 間の半角空白で false negative が出るため、改行を含む場合のみ
- * 除去するように限定した。
+ * 前提: template generator は deterministic で、同じ入力に対して常に同じ
+ * HTML 文字列 (改行 + インデントのパターンも含めて) を出力する。fixture
+ * との文字列完全一致を比較対象とすることで、SPEC §5.4 の 1px 不変保証を
+ * jest 内で代替担保する。
  */
 export function normalizeHtmlForSnapshot(html: string): string {
   return html
-    .replace(/<!--[\s\S]*?-->/g, '') // remove HTML comments
-    .replace(/>\s*\n[\s\n]*</g, '><') // remove inter-tag whitespace that contains newline (cosmetic only)
+    .replace(/<!--[\s\S]*?-->/g, '') // remove HTML comments (always cosmetic in rendering)
     .trim();
 }
 

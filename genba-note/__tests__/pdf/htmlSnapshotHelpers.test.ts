@@ -18,25 +18,28 @@ describe('normalizeHtmlForSnapshot', () => {
     expect(normalizeHtmlForSnapshot(input)).toBe('<div>x</div>');
   });
 
-  it('collapses inter-tag whitespace that contains newline + indent (cosmetic)', () => {
-    const input = `<div>
-      <span>x</span>
-      <span>y</span>
-    </div>`;
-    expect(normalizeHtmlForSnapshot(input)).toBe('<div><span>x</span><span>y</span></div>');
-  });
-
+  // Codex P4-C-1 review iter2 反映: inter-tag whitespace は文脈依存
+  // (block / inline / inline-text 境界) で削除すると false negative。
+  // template generator は deterministic なので完全保持で問題ない。
   it('preserves whitespace inside text nodes (e.g. 全角空白)', () => {
     const input = '<span>見　積　書</span>';
     expect(normalizeHtmlForSnapshot(input)).toBe('<span>見　積　書</span>');
   });
 
-  // Codex P4-C-1 review iter1 blocking 回帰テスト:
-  // inline sibling 間の半角空白は rendering-significant なので保持する。
-  // 全削除すると inline 描画で隙間が消えて pixel diff 0 ゲートが false negative になる。
-  it('preserves single space between inline siblings (rendering-significant whitespace)', () => {
+  it('preserves single space between inline siblings (rendering-significant)', () => {
     const input = '<span>a</span> <span>b</span>';
     expect(normalizeHtmlForSnapshot(input)).toBe('<span>a</span> <span>b</span>');
+  });
+
+  // 改行を含む inter-tag whitespace も保持する (inline 文脈では空白として描画され得る)
+  it('preserves newline between inline-context tags (also rendering-significant)', () => {
+    const input = '<span>a</span>\n<span>b</span>';
+    expect(normalizeHtmlForSnapshot(input)).toBe('<span>a</span>\n<span>b</span>');
+  });
+
+  it('preserves block-level newline + indent verbatim (no cosmetic collapse)', () => {
+    const input = '<div>a</div>\n  <div>b</div>';
+    expect(normalizeHtmlForSnapshot(input)).toBe('<div>a</div>\n  <div>b</div>');
   });
 
   it('preserves significant single space inside attributes', () => {
@@ -51,11 +54,8 @@ describe('normalizeHtmlForSnapshot', () => {
 });
 
 describe('htmlEquals', () => {
-  it('returns true for cosmetically different but equivalent HTML', () => {
-    const a = `<div>
-      <!-- this comment is fine -->
-      <span>x</span>
-    </div>`;
+  it('treats HTML comment removal as cosmetic (equivalent)', () => {
+    const a = '<div><!-- comment --><span>x</span></div>';
     const b = '<div><span>x</span></div>';
     expect(htmlEquals(a, b)).toBe(true);
   });
@@ -66,19 +66,22 @@ describe('htmlEquals', () => {
     expect(htmlEquals(a, b)).toBe(false);
   });
 
-  // Codex P4-C-1 review iter1 blocking 回帰テスト (boundary):
-  // inline sibling 間の半角空白は rendering-significant なので、
-  // 「半角空白あり」と「なし」は別物と判定すべき (false negative 防止)。
+  // Codex P4-C-1 iter1 blocking 回帰: inline sibling 半角空白あり/なし は rendering-significant
   it('inline sibling with single space ≠ without space (false-negative regression guard)', () => {
-    const withSpace = '<span>a</span> <span>b</span>';
-    const withoutSpace = '<span>a</span><span>b</span>';
-    expect(htmlEquals(withSpace, withoutSpace)).toBe(false);
+    expect(htmlEquals('<span>a</span> <span>b</span>', '<span>a</span><span>b</span>')).toBe(false);
   });
 
-  // 補完: 改行 + indent は cosmetic として等しく扱う (block-level formatting)
-  it('block-level newline + indent between tags is cosmetic (treated equal)', () => {
-    const a = '<div>a</div>\n  <div>b</div>';
-    const b = '<div>a</div><div>b</div>';
-    expect(htmlEquals(a, b)).toBe(true);
+  // Codex P4-C-1 iter2 blocking 回帰: 改行を含む inter-tag whitespace も rendering-significant
+  it('inline sibling with newline ≠ without whitespace (false-negative regression guard)', () => {
+    expect(htmlEquals('<span>a</span>\n<span>b</span>', '<span>a</span><span>b</span>')).toBe(false);
+  });
+
+  it('inline sibling with newline + indent ≠ without whitespace', () => {
+    expect(htmlEquals('<span>a</span>\n  <span>b</span>', '<span>a</span><span>b</span>')).toBe(false);
+  });
+
+  // inline-text 境界も同様 (text → inline tag に切り替わる位置の whitespace)
+  it('inline-text boundary: newline ≠ no whitespace', () => {
+    expect(htmlEquals('<span>a</span>\ntext', '<span>a</span>text')).toBe(false);
   });
 });
