@@ -584,6 +584,36 @@ describe('conversionService', () => {
         expect(result.data?.invoice.blockPlacements).toEqual(expected);
       });
 
+      it('settings load failure → falls back to FORMAL_STANDARD for resolve', async () => {
+        // SPEC §3.3 + iter2 implementation note: settings 読込失敗時は明示的に
+        // 'FORMAL_STANDARD' を fallback として使う。partial override は維持しつつ
+        // 残り 2 ブロックは FORMAL_STANDARD の template default で埋まることを担保。
+        setupHappyMocks();
+        mockedAsyncStorage.getSettings.mockResolvedValue({
+          success: false,
+          error: { code: 'READ_ERROR', message: 'storage failed' },
+        });
+
+        const estimate = createTestDocument({
+          type: 'estimate',
+          blockPlacements: { bankAccount: 'top-left' }, // partial override
+        });
+        mockedAsyncStorage.getDocumentById.mockResolvedValue({
+          success: true,
+          data: estimate,
+        });
+
+        const result = await convertEstimateToInvoice(estimate.id, { today: TODAY });
+        expect(result.success).toBe(true);
+
+        const expected = resolveBlockPlacements(
+          estimate.blockPlacements,
+          'FORMAL_STANDARD' // explicit fallback per iter2 implementation
+        );
+        expect(result.data?.invoice.blockPlacements).toEqual(expected);
+        expect(result.data?.invoice.blockPlacements?.bankAccount).toBe('top-left');
+      });
+
       it('full override is preserved as-is after resolve (idempotent)', async () => {
         const fixtureSettings = {
           ...DEFAULT_APP_SETTINGS,
