@@ -199,7 +199,16 @@ export default function DocumentEditScreen() {
   const handlePreview = useCallback(() => {
     setShowActionSheet(false);
 
-    // Build document data for preview
+    // Build document data for preview.
+    // carriedForwardAmount は save/update 経路と同じ変換規約:
+    // 空文字 → null、parseInt → NaN なら null、それ以外は number。
+    // これがないと未保存 preview で繰越金額が脱落して合計が編集画面とズレる
+    // (codex P3 final review iter2 blocking)。
+    const carriedRaw = state.values.carriedForwardAmount;
+    const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
+    const carriedForwardAmount =
+      carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
+
     const previewDocument: Partial<Document> = {
       id: state.documentId || '',
       documentNo: state.documentNo || '',
@@ -213,6 +222,7 @@ export default function DocumentEditScreen() {
       dueDate: state.values.dueDate || null,
       paidAt: state.values.paidAt || null,
       lineItems: state.lineItems,
+      carriedForwardAmount,
       notes: state.values.notes || null,
       issuerSnapshot: state.issuerSnapshot ?? {
         companyName: null,

@@ -272,6 +272,36 @@ describe('asyncStorageService', () => {
         expect(result.success).toBe(true);
         expect(result.data?.blockPlacements).toBeNull();
       });
+
+      // SPEC §8.3 rollback/resave 契約 (codex P3 final iter2 advisory 対応):
+      // v10 アプリで override を保存 → v9 アプリで再保存 (blockPlacements
+      // フィールドが落ちる) → v10 アプリで再読込 → null (= テンプレデフォルト)
+      // に戻る。これを end-to-end で固定し、v10 → v9 → v10 の rollback contract
+      // をテストレベルで明示する。
+      it('rollback round-trip: v10 override → v9 resave drops field → v10 read normalizes to null', async () => {
+        // 1. v10 アプリで override 保存
+        const v10Document = createTestDocument({
+          id: 'rollback-doc',
+          blockPlacements: { bankAccount: 'top-left', companyStamp: 'bottom-right' },
+        });
+
+        // 2. v9 アプリで再保存 (v9 は blockPlacements フィールドを知らない →
+        //    JSON.stringify 後にフィールドが消えた状態をシミュレート)
+        const v9Resaved: Partial<Document> = { ...v10Document };
+        delete v9Resaved.blockPlacements;
+
+        // 3. v10 アプリで再読込
+        mockedAsyncStorage.getItem.mockResolvedValue(JSON.stringify([v9Resaved]));
+        const result = await getDocumentById('rollback-doc');
+
+        // 4. read-time normalization で blockPlacements が null に戻る
+        //    (= 次回 preview/print でテンプレデフォルト配置で表示される)
+        expect(result.success).toBe(true);
+        expect(result.data?.blockPlacements).toBeNull();
+        // 他のフィールドは破壊されていない
+        expect(result.data?.id).toBe('rollback-doc');
+        expect(result.data?.clientName).toBe(v10Document.clientName);
+      });
     });
   });
 

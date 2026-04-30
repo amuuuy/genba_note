@@ -136,5 +136,24 @@ describe('validatePreviewDocument — blockPlacements normalization (SPEC §4.2)
       const result = validatePreviewDocument(parsed);
       expect(result!.blockPlacements).toBeNull();
     });
+
+    // codex P3 final review iter2 blocking 回帰テスト:
+    // unsaved preview で carriedForwardAmount が脱落しないことを担保。
+    // app/document/[id].tsx の handlePreview() で carriedForwardAmount を
+    // JSON に載せる修正と組み合わせ、enrichDocumentWithTotals での合計が
+    // 編集画面と一致する。
+    it('preserves carriedForwardAmount: number across JSON round-trip', () => {
+      const editStateLike = { ...baseInput, carriedForwardAmount: 50000 };
+      const parsed = JSON.parse(JSON.stringify(editStateLike));
+      const result = validatePreviewDocument(parsed);
+      expect(result!.carriedForwardAmount).toBe(50000);
+    });
+
+    it('preserves carriedForwardAmount: null across JSON round-trip', () => {
+      const editStateLike = { ...baseInput, carriedForwardAmount: null };
+      const parsed = JSON.parse(JSON.stringify(editStateLike));
+      const result = validatePreviewDocument(parsed);
+      expect(result!.carriedForwardAmount).toBeNull();
+    });
   });
 });
