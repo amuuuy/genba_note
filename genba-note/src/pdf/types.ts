@@ -10,6 +10,7 @@
 
 import type { DocumentWithTotals, SensitiveIssuerSnapshot, DocumentType } from '@/types/document';
 import type { SealSize, BackgroundDesign, DocumentTemplateId, PreviewOrientation, InvoiceTemplateType } from '@/types/settings';
+import type { BlockPlacements } from '@/types/blockPlacement';
 
 // Re-export settings-related types for backward compatibility
 export {
@@ -93,6 +94,20 @@ export interface PdfTemplateInput {
 
   /** Pre-loaded background image data URL for IMAGE design */
   backgroundImageDataUrl?: string | null;
+
+  /**
+   * Per-document block placement override (v1.0.2, SPEC §3.4).
+   *
+   * - undefined: caller doesn't supply any override; generator may fall back
+   *   to `document.blockPlacements` once shared resolver path is wired in P4.
+   * - null: explicit "use template default" (lazy default).
+   * - object: partial or full override to apply.
+   *
+   * P4 で `generateHtmlTemplate()` 内 shared path に配線する。本フィールドは
+   * 解決前 (raw) の override で、template generator には `Required<BlockPlacements>`
+   * として `TemplateOptions.blockPlacements` から渡される。
+   */
+  blockPlacements?: BlockPlacements | null;
 }
 
 /**
