@@ -26,6 +26,7 @@
 import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { SealSize, BackgroundDesign } from './types';
 import type { TemplateOptions } from './templates/templateRegistry';
+import type { BlockPlacements } from '@/types/blockPlacement';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from './types';
 import { getBackgroundCss, getBackgroundHtml } from './backgroundDesigns';
 import { getDocumentLabels } from './templates/documentLabels';
@@ -37,6 +38,16 @@ import {
   escapeHtml,
   isValidImageDataUri,
 } from './templateUtils';
+import { isDefaultResolvedPlacement } from './blockPlacementResolver';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from './blockPlacementDefaults';
+import {
+  computePerBlockStatus,
+  placeBlocks,
+  renderBlockLayoutTop,
+  renderBlockLayoutBottom,
+  BLOCK_LAYOUT_GRID_CSS,
+  type RenderedBlocks,
+} from './blockPlacementLayout';
 
 // === Local Helper Functions ===
 
@@ -890,8 +901,17 @@ export function generateInvoiceAccountingTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   sealSize?: SealSize,
   backgroundDesign?: BackgroundDesign,
-  backgroundImageDataUrl?: string | null
+  backgroundImageDataUrl?: string | null,
+  blockPlacements?: Required<BlockPlacements>
 ): string {
+  // SPEC §5.1 / §7.2 hybrid pattern (FORMAL_STANDARD と同じ pattern):
+  //   default 一致 → legacy DOM そのまま (旧コード完全実行、pixel diff 0 を保証)
+  //   override   → block-by-block extraction + dual anchor grid (P4-C-3)
+  // blockPlacements が未指定 (sealSize.test.ts 等の直接呼び出し) ならテンプレ
+  // default にフォールバック → 必ず legacy branch を通る。
+  const resolved = blockPlacements ?? TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.ACCOUNTING;
+  const isDefault = isDefaultResolvedPlacement(resolved, 'ACCOUNTING');
+
   const accountingSealSizePx = getSealSizePx(sealSize ?? DEFAULT_SEAL_SIZE, 'ACCOUNTING');
   const accountingBackgroundCss = getBackgroundCss(backgroundDesign ?? 'NONE', backgroundImageDataUrl);
   const accountingBackgroundHtml = getBackgroundHtml(backgroundDesign ?? 'NONE', backgroundImageDataUrl);
@@ -899,17 +919,90 @@ export function generateInvoiceAccountingTemplate(
     ? `<div class="client-address">${escapeHtml(doc.clientAddress)}</div>`
     : '';
 
-  // Render issuer block as standalone section
-  const issuerBlockHtml = renderIssuerBlock(doc, sensitiveSnapshot);
-  const issuerSectionHtml = issuerBlockHtml
-    ? `<div class="issuer-section-standalone">${issuerBlockHtml}</div>`
-    : '';
+  // === Block placement decisions (legacy / override) ===
+  //
+  // legacy branch: 旧 DOM そのまま。block-layout-* / override CSS は一切出力しない。
+  //   全 inject points (`${overrideCss}` / `${blockLayoutTopHtml}` /
+  //   `${blockLayoutBottomHtml}`) は空文字。テンプレート whitespace に変化なし
+  //   → fixture diff 0 を維持。
+  // override branch: block-by-block extraction で legacy DOM から moved block を
+  //   抜き、dual anchor grid (header 後 / totals 後) に配置。BLOCK_LAYOUT_GRID_CSS
+  //   は実際に grid を出す時のみ inject。
+  const labels = getDocumentLabels(doc.type);
+  let issuerSectionHtml: string;
+  let infoSectionHtml: string;
+  let notesHtml: string;
+  let blockLayoutTopHtml = '';
+  let blockLayoutBottomHtml = '';
+  let overrideCss = '';
 
-  // Render info block as standalone section
-  const infoBlockHtml = renderInfoBlock(doc, sensitiveSnapshot);
-  const infoSectionHtml = infoBlockHtml
-    ? `<div class="info-block-section">${infoBlockHtml}</div>`
-    : '';
+  if (isDefault) {
+    const issuerBlockHtml = renderIssuerBlock(doc, sensitiveSnapshot);
+    issuerSectionHtml = issuerBlockHtml
+      ? `<div class="issuer-section-standalone">${issuerBlockHtml}</div>`
+      : '';
+    const infoBlockHtml = renderInfoBlock(doc, sensitiveSnapshot);
+    infoSectionHtml = infoBlockHtml
+      ? `<div class="info-block-section">${infoBlockHtml}</div>`
+      : '';
+    notesHtml = renderNotesSection(doc);
+  } else {
+    const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.ACCOUNTING;
+    const perBlock = computePerBlockStatus(resolved, templateDefault);
+
+    // Legacy positions: untouched-at-default block は legacy DOM 内にそのまま残す。
+    //   companyStamp untouched → issuer-block 内に seal 残す
+    //   bankAccount untouched   → info-block 内に bank row 残す (showBankInfo 時のみ)
+    //   remarks untouched       → notes-section をそのまま出力
+    const issuerBlockInner = perBlock.companyStamp.isDefault
+      ? renderIssuerBlock(doc, sensitiveSnapshot)
+      : renderIssuerInfoText(doc, sensitiveSnapshot);
+    issuerSectionHtml = issuerBlockInner
+      ? `<div class="issuer-section-standalone">${issuerBlockInner}</div>`
+      : '';
+
+    const infoRowsHtml = renderInfoBlockRows(
+      doc,
+      sensitiveSnapshot,
+      /*includeBank=*/perBlock.bankAccount.isDefault
+    );
+    const infoBlockHtml = renderInfoBlockFromRows(infoRowsHtml);
+    infoSectionHtml = infoBlockHtml
+      ? `<div class="info-block-section">${infoBlockHtml}</div>`
+      : '';
+
+    notesHtml = perBlock.remarks.isDefault ? renderNotesSection(doc) : '';
+
+    // Grid placement: moved block (isDefault=false かつ position !== 'hidden') のみ
+    // grid セルへ配置。bank は renderBankBlockForCell で `<table>` wrapper を必ず
+    // 通す (Codex P4-C-3 iter1 blocking 反映: bare `<tr>` は `<div>` 内に置けない)。
+    // estimate では showBankInfo=false のため bank fragment は常に空。
+    const renderedBlocks: RenderedBlocks = {
+      bankAccount: !perBlock.bankAccount.isDefault && labels.showBankInfo
+        ? renderBankBlockForCell(sensitiveSnapshot)
+        : '',
+      companyStamp: !perBlock.companyStamp.isDefault
+        ? renderSealFragment(doc.issuerSnapshot)
+        : '',
+      remarks: !perBlock.remarks.isDefault
+        ? renderNotesFragment(doc)
+        : '',
+    };
+
+    const cells = placeBlocks(resolved, renderedBlocks);
+    const topRegion = renderBlockLayoutTop(cells);
+    const bottomRegion = renderBlockLayoutBottom(cells);
+
+    // Inject points を「空ならゼロ文字、出力時のみ前置改行+indent」にすることで
+    // legacy 時の whitespace を完全保持する (pixel diff 0 ゲート保護)。
+    blockLayoutTopHtml = topRegion ? `\n    ${topRegion}` : '';
+    blockLayoutBottomHtml = bottomRegion ? `\n    ${bottomRegion}` : '';
+
+    if (topRegion || bottomRegion) {
+      overrideCss = `
+    ${BLOCK_LAYOUT_GRID_CSS}`;
+    }
+  }
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -918,7 +1011,7 @@ export function generateInvoiceAccountingTemplate(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     ${getTemplateStyles(accountingSealSizePx)}
-    ${accountingBackgroundCss}
+    ${accountingBackgroundCss}${overrideCss}
   </style>
 </head>
 <body>
@@ -937,7 +1030,7 @@ export function generateInvoiceAccountingTemplate(
     </div>
 
     <!-- Greeting -->
-    <div class="greeting-text">${escapeHtml(getDocumentLabels(doc.type).greeting)}</div>
+    <div class="greeting-text">${escapeHtml(labels.greeting)}</div>${blockLayoutTopHtml}
 
     <!-- Info block (full width) -->
     ${infoSectionHtml}
@@ -952,10 +1045,10 @@ export function generateInvoiceAccountingTemplate(
     ${renderCarriedForwardBlock(doc)}
 
     <!-- Grand total (after line items) -->
-    ${renderGrandTotalBlock(doc)}
+    ${renderGrandTotalBlock(doc)}${blockLayoutBottomHtml}
 
     <!-- Notes -->
-    ${renderNotesSection(doc)}
+    ${notesHtml}
   </div>
 </body>
 </html>`;
@@ -970,5 +1063,12 @@ export function generateAccountingTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
-  return generateInvoiceAccountingTemplate(doc, sensitiveSnapshot, options.sealSize, options.backgroundDesign, options.backgroundImageDataUrl);
+  return generateInvoiceAccountingTemplate(
+    doc,
+    sensitiveSnapshot,
+    options.sealSize,
+    options.backgroundDesign,
+    options.backgroundImageDataUrl,
+    options.blockPlacements
+  );
 }

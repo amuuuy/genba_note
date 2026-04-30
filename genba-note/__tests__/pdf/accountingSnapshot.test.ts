@@ -172,3 +172,258 @@ describe('ACCOUNTING legacy snapshot (P4-C-3 baseline)', () => {
     compareOrUpdateFixture('invoice-empty-issuer-with-seal', generateForFixture(doc, null));
   });
 });
+
+// === P4-C-3 ACCOUNTING override branch fixtures ===
+//
+// SPEC §7.2 (block-by-block override + dual anchor) を実装した override branch の
+// 出力を凍結する。FORMAL_STANDARD の override fixture と同じカバレッジで、ACCOUNTING
+// の structure 特性 (seal が issuer-block 内 inline 挿入、bank が table-row、grid
+// cell に配置時は `<table>` wrapper を介する) を担保する。
+describe('ACCOUNTING override snapshot (P4-C-3)', () => {
+  // Helper: full default placement reference (ACCOUNTING)
+  const ACCOUNTING_DEFAULT: BlockPlacements = {
+    bankAccount: 'top-center',
+    companyStamp: 'top-right',
+    remarks: 'bottom-center',
+  };
+
+  // --- Single-block move (1 block moves, others stay at legacy DOM) ---
+
+  it('override-bank-only-bottom-right: bank moves to bottom-right, seal/notes stay (Codex iter2 #1: bank in cell uses <table> wrapper)', () => {
+    // bank が moved → info-block から row が抜け、grid cell に <table> wrapper つきで配置
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'override-bank-only-bottom-right',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-seal-only-top-left: seal moves to top-left, bank/notes stay', () => {
+    // seal が moved → issuer-block から seal line が抜け、grid cell に配置
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      companyStamp: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-seal-only-top-left',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-notes-only-bottom-left: notes moves to bottom-left, bank/seal stay', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      remarks: 'bottom-left',
+    };
+    compareOrUpdateFixture(
+      'override-notes-only-bottom-left',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Hidden cases (block disappears entirely) ---
+
+  it('override-hidden-bank: bank=hidden — disappears from info-block and grid', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      bankAccount: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-bank',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-hidden-seal: seal=hidden — disappears from issuer-block and grid', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      companyStamp: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-seal',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  it('override-hidden-notes: remarks=hidden — disappears from notes-section and grid (Codex global concern: distinct from doc.notes=null which still emits the box)', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      remarks: 'hidden',
+    };
+    compareOrUpdateFixture(
+      'override-hidden-notes',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Preset-style multi-block override (matches §3.6 BLOCK_PLACEMENT_PRESETS) ---
+
+  it('override-bank-focus-preset: bank=bottom-center, seal=top-right (default), remarks=top-left (preset shape, seal-stays-while-others-change)', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      bankAccount: 'bottom-center',
+      companyStamp: 'top-right',
+      remarks: 'top-left',
+    };
+    compareOrUpdateFixture(
+      'override-bank-focus-preset',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Same-cell stacking (multiple blocks share one cell, render order固定) ---
+
+  it('override-same-cell-stack: bank+seal+remarks all moved to bottom-left (SAME_CELL_RENDER_ORDER fixed: bank → seal → remarks)', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      bankAccount: 'bottom-left',
+      companyStamp: 'bottom-left',
+      remarks: 'bottom-left',
+    };
+    compareOrUpdateFixture(
+      'override-same-cell-stack',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- Estimate path: bank position is no-op (showBankInfo=false) ---
+
+  it('estimate-bank-override-noop: estimate + bank=bottom-right has no visible effect (showBankInfo=false, override branch fragments empty)', () => {
+    // ACCOUNTING テンプレで estimate を生成。bank override は showBankInfo=false で
+    // 空 fragment になるため、override branch に入っても見た目は legacy と同形
+    // (BLOCK_LAYOUT_GRID_CSS は inject されない、grid wrapper も出ない)。
+    const doc = makeAccountingDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'estimate-bank-override-noop',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+
+  // --- doc.notes=null + remarks at default → empty notes box still emits ---
+
+  it('override-bank-only-notes-null: bank moves, doc.notes=null + remarks default → empty notes-section still emits at legacy position', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+      notes: null,
+    });
+    const placements: BlockPlacements = {
+      ...ACCOUNTING_DEFAULT,
+      bankAccount: 'bottom-right',
+    };
+    compareOrUpdateFixture(
+      'override-bank-only-notes-null',
+      generateForFixture(doc, createTestSensitiveSnapshot(), placements)
+    );
+  });
+});
+
+// === Default-equivalent inputs unconditionally route to legacy branch ===
+// FORMAL_STANDARD と同じ tri-state coverage を ACCOUNTING でも担保。
+describe('ACCOUNTING default-equivalent inputs route to legacy (P4-C-3)', () => {
+  it('undefined caller override + doc.blockPlacements=null → legacy (saved-doc fallback path)', () => {
+    const doc = makeAccountingDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const generated = generateForFixture(doc, sensitive); // omit blockPlacements arg
+    const fixturePath = path.join(FIXTURE_DIR, 'estimate-default.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('explicit-null caller override resets doc.blockPlacements to template default (tri-state reset path)', () => {
+    // FORMAL と同じ visible-override pattern: doc に companyStamp='top-left' を保存。
+    // - 正しい実装なら invoice-richest.html (legacy) と一致
+    // - broken 実装 (`blockPlacements ?? doc.blockPlacements`) なら override-seal-only-top-left.html
+    //   と一致して fail (= test が semantics を distinguish する)
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    doc.blockPlacements = { companyStamp: 'top-left' };
+    const sensitive = createTestSensitiveSnapshot();
+    const generated = generateForFixture(doc, sensitive, null); // explicit null reset
+
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+    expect(generated).not.toContain('block-layout-top');
+    expect(generated).not.toContain('block-layout-bottom');
+  });
+
+  it('partial-matching-default object produces identical HTML to legacy', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    // Only bank specified, matching ACCOUNTING default (top-center)
+    const partialDefault: BlockPlacements = { bankAccount: 'top-center' };
+    const generated = generateForFixture(doc, sensitive, partialDefault);
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+
+  it('full-default-object produces identical HTML to legacy (no override CSS, no grid wrappers)', () => {
+    const doc = makeAccountingDoc({
+      type: 'invoice',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const fullDefault: BlockPlacements = {
+      bankAccount: 'top-center',
+      companyStamp: 'top-right',
+      remarks: 'bottom-center',
+    };
+    const generated = generateForFixture(doc, sensitive, fullDefault);
+    expect(generated).not.toContain('block-layout-top');
+    expect(generated).not.toContain('block-layout-bottom');
+    expect(generated).not.toContain('.block-layout-cell');
+    const fixturePath = path.join(FIXTURE_DIR, 'invoice-richest.html');
+    const fixture = fs.readFileSync(fixturePath, 'utf-8');
+    expect(normalizeHtmlForSnapshot(generated)).toBe(normalizeHtmlForSnapshot(fixture));
+  });
+});
