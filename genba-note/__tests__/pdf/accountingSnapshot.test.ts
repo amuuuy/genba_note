@@ -364,6 +364,25 @@ describe('ACCOUNTING override snapshot (P4-C-3)', () => {
     );
   });
 
+  // Codex P4-C-4 advisory 反映: parity を fixture 同一性ではなく生成 HTML 比較で担保。
+  it('estimate-bank-override-noop generates the same HTML as estimate-default (parity assertion)', () => {
+    const baseDoc = makeAccountingDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const noopHtml = generateForFixture(baseDoc, sensitive, {
+      ...ACCOUNTING_DEFAULT,
+      bankAccount: 'bottom-right',
+    });
+    const legacyDoc = makeAccountingDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const legacyHtml = generateForFixture(legacyDoc, sensitive);
+    expect(normalizeHtmlForSnapshot(noopHtml)).toBe(normalizeHtmlForSnapshot(legacyHtml));
+  });
+
   // --- doc.notes=null + remarks at default → empty notes box still emits ---
 
   it('override-bank-only-notes-null: bank moves, doc.notes=null + remarks default → empty notes-section still emits at legacy position', () => {

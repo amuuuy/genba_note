@@ -344,6 +344,28 @@ describe('SIMPLE override snapshot (P4-C-4)', () => {
       generateForFixture(doc, createTestSensitiveSnapshot(), placements)
     );
   });
+
+  // Codex P4-C-4 SIMPLE review advisory 反映: estimate no-op の parity を fixture
+  // 同一性ではなく、生成した HTML が legacy default と byte-identical であることで
+  // 直接担保する。両 fixture が同時に regenerate されたケースでも parity 崩壊を検知。
+  it('estimate-bank-override-noop generates the same HTML as estimate-default (parity assertion)', () => {
+    const baseDoc = makeSimpleDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const sensitive = createTestSensitiveSnapshot();
+    const noopHtml = generateForFixture(baseDoc, sensitive, {
+      ...SIMPLE_DEFAULT,
+      bankAccount: 'bottom-right',
+    });
+    // 同条件の legacy default を別に生成 (no-op が byte-identical を保つ証拠)
+    const legacyDoc = makeSimpleDoc({
+      type: 'estimate',
+      issuerOverrides: { sealImageBase64: TEST_SEAL },
+    });
+    const legacyHtml = generateForFixture(legacyDoc, sensitive);
+    expect(normalizeHtmlForSnapshot(noopHtml)).toBe(normalizeHtmlForSnapshot(legacyHtml));
+  });
 });
 
 // === Default-equivalent inputs unconditionally route to legacy branch ===
