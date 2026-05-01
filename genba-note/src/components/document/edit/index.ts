@@ -39,3 +39,6 @@ export type { SaveActionSheetProps } from './SaveActionSheet';
 
 export { PublishConfirmModal } from './PublishConfirmModal';
 export type { PublishConfirmModalProps } from './PublishConfirmModal';
+
+export { BlockPlacementModal } from './BlockPlacementModal';
+export type { BlockPlacementModalProps } from './BlockPlacementModal';

@@ -15,6 +15,7 @@ import { v6RemoveUndatedPhotosMigration } from './v6-remove-undated-photos';
 import { v7AddPdfCustomizationMigration } from './v7-add-pdf-customization';
 import { v8AddCalendarEventsMigration } from './v8-add-calendar-events';
 import { v9AddEmailFieldMigration } from './v9-add-email-field';
+import { v10AddBlockPlacementsMigration } from './v10-add-block-placements';
 
 // Register all migrations
 registerMigration(v1InitialMigration);
@@ -26,6 +27,7 @@ registerMigration(v6RemoveUndatedPhotosMigration);
 registerMigration(v7AddPdfCustomizationMigration);
 registerMigration(v8AddCalendarEventsMigration);
 registerMigration(v9AddEmailFieldMigration);
+registerMigration(v10AddBlockPlacementsMigration);
 
 // Re-export for direct access if needed
 export {
@@ -38,4 +40,5 @@ export {
   v7AddPdfCustomizationMigration,
   v8AddCalendarEventsMigration,
   v9AddEmailFieldMigration,
+  v10AddBlockPlacementsMigration,
 };

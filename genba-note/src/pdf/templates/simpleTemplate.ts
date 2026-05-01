@@ -16,7 +16,7 @@
  * Supports both estimate (見積書) and invoice (請求書) document types.
  */
 
-import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { TemplateOptions } from './templateRegistry';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from '@/pdf/types';
 import { FORMAL_COLORS } from '@/pdf/types';
@@ -31,6 +31,16 @@ import {
   escapeHtml,
   isValidImageDataUri,
 } from '@/pdf/templateUtils';
+import { isDefaultResolvedPlacement } from '@/pdf/blockPlacementResolver';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
+import {
+  computePerBlockStatus,
+  placeBlocks,
+  renderBlockLayoutTop,
+  renderBlockLayoutBottom,
+  BLOCK_LAYOUT_GRID_CSS,
+  type RenderedBlocks,
+} from '@/pdf/blockPlacementLayout';
 
 // === Local Helpers ===
 
@@ -167,8 +177,10 @@ function getSimpleStyles(sealSizePx: number): string {
       margin-bottom: 2px;
     }
 
-    /* Seal image positioned below phone number */
-    .issuer-seal {
+    /* Seal image positioned below phone number (legacy: inside issuer-block).
+       Override branch で seal が grid cell に moved されたとき cell の text-align を
+       継承させたいため、.issuer-block に scope する (P4-C-3 と同 pattern)。 */
+    .issuer-block .issuer-seal {
       text-align: right;
       margin: 8px 0;
     }
@@ -423,13 +435,71 @@ function getSimpleStyles(sealSizePx: number): string {
 
 // === Section Renderers ===
 
+// === Fragment primitives (P4-C-4 SIMPLE, SPEC §7.2.5) ===
+// FORMAL/ACCOUNTING で確立した pattern を SIMPLE に適用。
+// SIMPLE は seal が issuer-block 内 inline 挿入 (ACCOUNTING と類似)、bank が
+// `<div class="info-row">` (FORMAL は info-box-row、ACCOUNTING は <tr>)。
+
 /**
- * Render info block with black-background labels
- * Contains: subject, period, bank info (invoice only)
+ * Seal 単独 fragment — SPEC §7.2.5。issuerSnapshot のみ参照。
  */
-function renderInfoBlock(
+function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
+  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
+  if (!hasSeal) return '';
+  return `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`;
+}
+
+/**
+ * Bank info 単独 fragment (info-row level、`<div class="info-row">`) — SPEC §7.2.5。
+ *
+ * **legacy 合成専用**: info-block 内の rows の一つとして組み立てる。
+ * **override 経路で grid cell に投入する場合は `renderBankBlockForCell()` を使う**:
+ *   info-block の枠 (border: 1px solid #000) を保ち visual 一貫性を確保するため、
+ *   bare `<div class="info-row">` ではなく info-block wrapper つきで投入する
+ *   (ACCOUNTING の renderBankBlockForCell pattern と同様)。
+ */
+function renderBankFragment(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  if (!hasBankInfo(sensitiveSnapshot)) return '';
+
+  const parts: string[] = [];
+  if (sensitiveSnapshot!.bankName) parts.push(escapeHtml(sensitiveSnapshot!.bankName));
+  if (sensitiveSnapshot!.branchName) parts.push(`${escapeHtml(sensitiveSnapshot!.branchName)}支店`);
+  if (sensitiveSnapshot!.accountType) parts.push(escapeHtml(sensitiveSnapshot!.accountType));
+  if (sensitiveSnapshot!.accountNumber) parts.push(escapeHtml(sensitiveSnapshot!.accountNumber));
+  if (sensitiveSnapshot!.accountHolderName) parts.push(escapeHtml(sensitiveSnapshot!.accountHolderName));
+
+  return `
+      <div class="info-row">
+        <div class="info-label">振込先</div>
+        <div class="info-value">${parts.join(' ')}</div>
+      </div>`;
+}
+
+/**
+ * Notes 単独 fragment — SPEC §7.2.5。
+ *
+ * SIMPLE は doc.notes が空なら空文字を返す legacy 挙動を保持
+ * (FORMAL/ACCOUNTING は wrapper を残すが、SIMPLE は出さない)。
+ */
+function renderNotesFragment(doc: DocumentWithTotals): string {
+  if (!doc.notes) return '';
+  return `
+    <div class="simple-notes-section">
+      <div class="notes-title">備考</div>
+      <div class="notes-content">${escapeHtml(doc.notes)}</div>
+    </div>
+  `;
+}
+
+/**
+ * info-block の rows 構築 (bank を含むかフラグで切替) — SPEC §7.2.5。
+ *
+ * legacy は includeBank=true、override で bank moved/hidden は includeBank=false。
+ */
+function renderInfoBlockRows(
   doc: DocumentWithTotals,
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null,
+  includeBank: boolean
 ): string {
   const labels = getDocumentLabels(doc.type);
   const rows: string[] = [];
@@ -453,31 +523,48 @@ function renderInfoBlock(
       </div>`);
   }
 
-  // Bank info (invoice only)
-  if (labels.showBankInfo && hasBankInfo(sensitiveSnapshot)) {
-    const parts: string[] = [];
-    if (sensitiveSnapshot!.bankName) parts.push(escapeHtml(sensitiveSnapshot!.bankName));
-    if (sensitiveSnapshot!.branchName) parts.push(`${escapeHtml(sensitiveSnapshot!.branchName)}支店`);
-    if (sensitiveSnapshot!.accountType) parts.push(escapeHtml(sensitiveSnapshot!.accountType));
-    if (sensitiveSnapshot!.accountNumber) parts.push(escapeHtml(sensitiveSnapshot!.accountNumber));
-    if (sensitiveSnapshot!.accountHolderName) parts.push(escapeHtml(sensitiveSnapshot!.accountHolderName));
-
-    rows.push(`
-      <div class="info-row">
-        <div class="info-label">振込先</div>
-        <div class="info-value">${parts.join(' ')}</div>
-      </div>`);
+  // Bank info (invoice only, gated by includeBank)
+  if (includeBank && labels.showBankInfo) {
+    const bankRow = renderBankFragment(sensitiveSnapshot);
+    if (bankRow) rows.push(bankRow);
   }
 
-  if (rows.length === 0) {
-    return '';
-  }
+  return rows.join('');
+}
 
+/**
+ * Wrap rows with `<div class="info-block">` — legacy / override 共通 wrapper。
+ * 空 rows の場合 wrapper も省略。whitespace を完全一致させるため共通 helper 経由。
+ */
+function renderInfoBlockFromRows(rowsHtml: string): string {
+  if (rowsHtml === '') return '';
   return `
     <div class="info-block">
-      ${rows.join('')}
+      ${rowsHtml}
     </div>
   `;
+}
+
+/**
+ * Render info block — legacy composition.
+ */
+function renderInfoBlock(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const rowsHtml = renderInfoBlockRows(doc, sensitiveSnapshot, /*includeBank=*/true);
+  return renderInfoBlockFromRows(rowsHtml);
+}
+
+/**
+ * Bank fragment を grid cell に投入するためのラッピング helper。
+ *
+ * info-block の枠 (border: 1px solid #000) で wrap し visual 一貫性を確保する
+ * (P4-C-3 ACCOUNTING の同名 helper と同 pattern)。
+ */
+function renderBankBlockForCell(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  const bankRow = renderBankFragment(sensitiveSnapshot);
+  return renderInfoBlockFromRows(bankRow);
 }
 
 /**
@@ -511,16 +598,18 @@ function renderCarriedForwardBlock(doc: DocumentWithTotals): string {
 }
 
 /**
- * Render issuer block (vertical stack, seal BELOW phone number)
+ * Build issuer info lines. SIMPLE の seal は issuer-block 内に inline 挿入される
+ * 構造のため、includeSeal フラグで seal 行を含めるかを制御する (ACCOUNTING と
+ * 同 pattern)。line order: companyName → postal → address1 → address2 → tel →
+ * [seal] → registration → contact。
  */
-function renderIssuerBlock(
+function buildIssuerInfoLines(
   doc: DocumentWithTotals,
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
-  sealSizePx: number
-): string {
+  includeSeal: boolean
+): string[] {
   const { issuerSnapshot } = doc;
   const labels = getDocumentLabels(doc.type);
-  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
 
   const infoLines: string[] = [];
 
@@ -546,9 +635,12 @@ function renderIssuerBlock(
     infoLines.push(`<div class="issuer-tel">TEL: ${escapeHtml(issuerSnapshot.phone)}</div>`);
   }
 
-  // Seal image (placed below phone number)
-  if (hasSeal) {
-    infoLines.push(`<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`);
+  // Seal image (placed below phone number) — flagged for override branch
+  if (includeSeal) {
+    const sealHtml = renderSealFragment(issuerSnapshot);
+    if (sealHtml) {
+      infoLines.push(sealHtml);
+    }
   }
 
   // Registration number (invoice only)
@@ -561,14 +653,45 @@ function renderIssuerBlock(
     infoLines.push(`<div class="issuer-contact">担当: ${escapeHtml(issuerSnapshot.contactPerson)}</div>`);
   }
 
-  if (infoLines.length === 0) {
-    return '';
-  }
+  return infoLines;
+}
 
+/**
+ * Issuer info text (seal を含まない issuer-block) — SPEC §7.2.5。
+ * override 経路で seal が moved されたとき header 相当部分を seal なしで
+ * レンダリングするための primitive。
+ */
+function renderIssuerInfoText(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot, /*includeSeal=*/false);
+  if (lines.length === 0) return '';
   return `
     <div class="issuer-block">
       <div class="issuer-info">
-        ${infoLines.join('\n        ')}
+        ${lines.join('\n        ')}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render issuer block (vertical stack, seal BELOW phone number) — legacy composition.
+ *
+ * sealSizePx は CSS 経由で適用されるため引数として保持しない (本 helper は
+ * legacy/override 共通の primitive を呼ぶ薄ラッパーに統一)。
+ */
+function renderIssuerBlock(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot, /*includeSeal=*/true);
+  if (lines.length === 0) return '';
+  return `
+    <div class="issuer-block">
+      <div class="issuer-info">
+        ${lines.join('\n        ')}
       </div>
     </div>
   `;
@@ -659,18 +782,14 @@ function renderTotalsSection(doc: DocumentWithTotals): string {
 }
 
 /**
- * Render notes section (M21 CHANGE: borderless with top line only)
- * Uses .simple-notes-section class to distinguish from other templates
+ * Render notes section (M21 CHANGE: borderless with top line only) — legacy composition.
+ *
+ * SIMPLE は doc.notes が空なら空文字を返す legacy 挙動を保持
+ * (FORMAL/ACCOUNTING は wrapper を残すが、SIMPLE は出さない)。
+ * Internally delegates to renderNotesFragment to share the box markup.
  */
 function renderNotesSection(doc: DocumentWithTotals): string {
-  if (!doc.notes) return '';
-
-  return `
-    <div class="simple-notes-section">
-      <div class="notes-title">備考</div>
-      <div class="notes-content">${escapeHtml(doc.notes)}</div>
-    </div>
-  `;
+  return renderNotesFragment(doc);
 }
 
 // === Main Template Generator ===
@@ -691,6 +810,11 @@ export function generateSimpleTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
+  // SPEC §5.1 / §7.2 hybrid pattern (FORMAL_STANDARD / ACCOUNTING と同 pattern):
+  //   default 一致 → legacy DOM そのまま (旧コード完全実行、pixel diff 0 を保証)
+  //   override   → block-by-block extraction + dual anchor grid (P4-C-4 SIMPLE)
+  const isDefault = isDefaultResolvedPlacement(options.blockPlacements, 'SIMPLE');
+
   const labels = getDocumentLabels(doc.type);
   const sealSizePx = getSealSizePx(options.sealSize ?? DEFAULT_SEAL_SIZE, 'SIMPLE');
   const backgroundCss = getBackgroundCss(options.backgroundDesign, options.backgroundImageDataUrl);
@@ -710,14 +834,66 @@ export function generateSimpleTemplate(
     ? `<div class="client-address">${escapeHtml(doc.clientAddress)}</div>`
     : '';
 
-  // Sections
-  const issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot, sealSizePx);
-  const infoBlockHtml = renderInfoBlock(doc, sensitiveSnapshot);
+  // === Block placement decisions (legacy / override) ===
+  let issuerHtml: string;
+  let infoBlockHtml: string;
+  let notesHtml: string;
+  let blockLayoutTopHtml = '';
+  let blockLayoutBottomHtml = '';
+  let overrideCss = '';
+
+  if (isDefault) {
+    issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot);
+    infoBlockHtml = renderInfoBlock(doc, sensitiveSnapshot);
+    notesHtml = renderNotesSection(doc);
+  } else {
+    const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.SIMPLE;
+    const perBlock = computePerBlockStatus(options.blockPlacements, templateDefault);
+
+    // Legacy positions: untouched-at-default block は legacy DOM 内にそのまま残す。
+    issuerHtml = perBlock.companyStamp.isDefault
+      ? renderIssuerBlock(doc, sensitiveSnapshot)
+      : renderIssuerInfoText(doc, sensitiveSnapshot);
+    const rowsHtml = renderInfoBlockRows(
+      doc,
+      sensitiveSnapshot,
+      /*includeBank=*/perBlock.bankAccount.isDefault
+    );
+    infoBlockHtml = renderInfoBlockFromRows(rowsHtml);
+    notesHtml = perBlock.remarks.isDefault ? renderNotesSection(doc) : '';
+
+    // Grid placement: moved block (isDefault=false かつ position !== 'hidden') のみ
+    // grid セルへ。bank は renderBankBlockForCell で info-block 枠付き wrap。
+    // estimate では showBankInfo=false で bank fragment 常に空。
+    const renderedBlocks: RenderedBlocks = {
+      bankAccount: !perBlock.bankAccount.isDefault && labels.showBankInfo
+        ? renderBankBlockForCell(sensitiveSnapshot)
+        : '',
+      companyStamp: !perBlock.companyStamp.isDefault
+        ? renderSealFragment(doc.issuerSnapshot)
+        : '',
+      remarks: !perBlock.remarks.isDefault
+        ? renderNotesFragment(doc)
+        : '',
+    };
+
+    const cells = placeBlocks(options.blockPlacements, renderedBlocks);
+    const topRegion = renderBlockLayoutTop(cells);
+    const bottomRegion = renderBlockLayoutBottom(cells);
+
+    blockLayoutTopHtml = topRegion ? `\n    ${topRegion}` : '';
+    blockLayoutBottomHtml = bottomRegion ? `\n    ${bottomRegion}` : '';
+
+    if (topRegion || bottomRegion) {
+      overrideCss = `
+    ${BLOCK_LAYOUT_GRID_CSS}`;
+    }
+  }
+
   const carriedForwardHtml = renderCarriedForwardBlock(doc);
   const grandTotalHtml = renderGrandTotalBlock(doc);
   const lineItemsTableHtml = renderLineItemsTable(doc);
   const totalsHtml = renderTotalsSection(doc);
-  const notesHtml = renderNotesSection(doc);
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -727,7 +903,7 @@ export function generateSimpleTemplate(
   <style>
     ${getSimpleStyles(sealSizePx)}
     ${themeCss}
-    ${backgroundCss}
+    ${backgroundCss}${overrideCss}
   </style>
 </head>
 <body>
@@ -750,7 +926,7 @@ export function generateSimpleTemplate(
         </div>
         ${issuerHtml}
       </div>
-    </div>
+    </div>${blockLayoutTopHtml}
 
     <!-- Info block (subject, period, bank info) -->
     ${infoBlockHtml}
@@ -765,7 +941,7 @@ export function generateSimpleTemplate(
     ${lineItemsTableHtml}
 
     <!-- Totals -->
-    ${totalsHtml}
+    ${totalsHtml}${blockLayoutBottomHtml}
 
     <!-- Notes -->
     ${notesHtml}

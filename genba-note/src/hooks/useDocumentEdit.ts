@@ -13,6 +13,7 @@ import type {
   LineItem,
   IssuerSnapshot,
 } from '@/types/document';
+import type { BlockPlacements } from '@/types/blockPlacement';
 import type { ValidationError } from '@/domain/document/types';
 import {
   createDocument,
@@ -71,6 +72,15 @@ export interface DocumentEditState {
   lineItems: LineItem[];
   /** Issuer snapshot (populated on load/create) */
   issuerSnapshot: IssuerSnapshot | null;
+  /**
+   * Per-document block placement override (v1.0.2, SPEC §7.1).
+   *
+   * `null` = テンプレデフォルト配置 (lazy default)。
+   * モーダル UI から `updateDocument(id, { blockPlacements })` で即保存される
+   * (SPEC §6.5)。BlockPlacementModal は documentId が確定している時のみ
+   * 開ける (SPEC §6.7.1: 新規未保存書類では disabled)。
+   */
+  blockPlacements: BlockPlacements | null;
   /** Validation errors by field */
   errors: Record<string, string>;
   /** Whether form is loading */
@@ -94,6 +104,7 @@ type DocumentEditAction =
   | { type: 'UPDATE_FIELD'; field: keyof DocumentFormValues; value: string }
   | { type: 'UPDATE_CUSTOMER_ID'; customerId: string | null }
   | { type: 'UPDATE_LINE_ITEMS'; lineItems: LineItem[] }
+  | { type: 'UPDATE_BLOCK_PLACEMENTS'; blockPlacements: BlockPlacements | null }
   | { type: 'SET_ERRORS'; errors: Record<string, string> }
   | { type: 'CLEAR_ERRORS' }
   | { type: 'START_SAVING' }
@@ -125,6 +136,7 @@ const initialState: DocumentEditState = {
   values: initialFormValues,
   lineItems: [],
   issuerSnapshot: null,
+  blockPlacements: null,
   errors: {},
   isLoading: false,
   isSaving: false,
@@ -134,7 +146,12 @@ const initialState: DocumentEditState = {
 
 // === Reducer ===
 
-function documentEditReducer(
+/**
+ * Reducer for document edit form state.
+ * Exported for unit testing of action semantics (UPDATE_BLOCK_PLACEMENTS など)。
+ * Production code should use the `useDocumentEdit` hook instead.
+ */
+export function documentEditReducer(
   state: DocumentEditState,
   action: DocumentEditAction
 ): DocumentEditState {
@@ -168,6 +185,7 @@ function documentEditReducer(
         },
         lineItems: action.document.lineItems,
         issuerSnapshot: action.document.issuerSnapshot,
+        blockPlacements: action.document.blockPlacements,
         errors: {},
         isDirty: false,
         errorMessage: null,
@@ -219,6 +237,15 @@ function documentEditReducer(
         isDirty: true,
       };
 
+    case 'UPDATE_BLOCK_PLACEMENTS':
+      // BlockPlacementModal が updateDocument 経由で永続保存した直後に呼ばれる。
+      // モーダル内 preview のリアルタイム反映を form state に同期するため state
+      // のみ更新 (永続化は modal 側で完了済、isDirty は付けない)。
+      return {
+        ...state,
+        blockPlacements: action.blockPlacements,
+      };
+
     case 'SET_ERRORS':
       return {
         ...state,
@@ -247,6 +274,7 @@ function documentEditReducer(
         status: action.document.status,
         lineItems: action.document.lineItems,
         issuerSnapshot: action.document.issuerSnapshot,
+        blockPlacements: action.document.blockPlacements,
         isDirty: false,
         errorMessage: null,
       };
@@ -409,6 +437,12 @@ export interface UseDocumentEditReturn {
   updateCustomerId: (customerId: string | null) => void;
   /** Update line items from useLineItemEditor */
   updateLineItems: (items: LineItem[]) => void;
+  /**
+   * Sync form state with already-persisted blockPlacements (BlockPlacementModal
+   * から呼ばれる). 永続保存は modal 内で完了済、本関数は in-memory state の
+   * リアルタイム反映用。isDirty は変えない。
+   */
+  updateBlockPlacements: (blockPlacements: BlockPlacements | null) => void;
   /** Save the document (create or update) */
   save: () => Promise<Document | null>;
   /** Change document status */
@@ -492,6 +526,19 @@ export function useDocumentEdit(
   const updateLineItems = useCallback((items: LineItem[]) => {
     dispatch({ type: 'UPDATE_LINE_ITEMS', lineItems: items });
   }, []);
+
+  /**
+   * BlockPlacementModal の onUpdated コールバックから呼ばれる。modal 側で
+   * updateDocument(id, { blockPlacements }) による永続保存は完了済なので、
+   * 本関数は in-memory form state を新値に同期するだけ (preview の
+   * リアルタイム反映用、isDirty は変えない)。
+   */
+  const updateBlockPlacements = useCallback(
+    (blockPlacements: BlockPlacements | null) => {
+      dispatch({ type: 'UPDATE_BLOCK_PLACEMENTS', blockPlacements });
+    },
+    []
+  );
 
   const validate = useCallback((): boolean => {
     const errors = validateFormValues(state.values, state.lineItems, state.status);
@@ -642,6 +689,7 @@ export function useDocumentEdit(
     updateField,
     updateCustomerId,
     updateLineItems,
+    updateBlockPlacements,
     save,
     changeStatus,
     validate,

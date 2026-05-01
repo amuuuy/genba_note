@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', 'Noto Serif JP', serif;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #000;
+      background: #fff;
+      padding: 30px 35px;
+    }
+
+    .document-container {
+      max-width: 100%;
+      margin: 0 auto;
+      border: double 4px #000;
+      padding: 30px 25px;
+    }
+
+    /* === Title Section === */
+    .classic-title {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      letter-spacing: 0.5em;
+      padding-bottom: 10px;
+      border-bottom: double 3px #000;
+      margin-bottom: 20px;
+    }
+
+    /* === Meta Section (right-aligned) === */
+    .classic-meta {
+      text-align: right;
+      margin-bottom: 15px;
+      font-size: 11px;
+    }
+
+    .classic-meta-row {
+      margin-bottom: 3px;
+    }
+
+    .classic-meta-label {
+      font-weight: bold;
+    }
+
+    /* === Client Section (left-aligned, full width) === */
+    .classic-client {
+      margin-bottom: 15px;
+    }
+
+    .classic-client-name {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .classic-client-address {
+      font-size: 11px;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    /* === Greeting === */
+    .classic-greeting {
+      font-size: 11px;
+      margin-bottom: 15px;
+    }
+
+    /* === Issuer Section (right-aligned, full width) === */
+    .classic-issuer {
+      text-align: right;
+      margin-bottom: 20px;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .classic-issuer-company {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .classic-issuer-postal,
+    .classic-issuer-address,
+    .classic-issuer-tel,
+    .classic-issuer-registration {
+      margin-bottom: 2px;
+    }
+
+    .classic-issuer-registration {
+      font-size: 10px;
+      color: #333;
+    }
+
+    .classic-issuer-contact {
+      margin-top: 4px;
+    }
+
+    /* === Seal (centered below issuer info) === */
+    /* Legacy: classic-issuer 内の seal は右寄せ。Override branch で seal が grid cell に
+       moved されたとき、cell の text-align を継承させたいため .classic-issuer 内に
+       scope する (P4-C-3 ACCOUNTING / P4-C-4 SIMPLE と同 pattern)。 */
+    .classic-issuer .classic-seal-container {
+      display: flex;
+      justify-content: flex-end;
+      margin: 8px 0;
+    }
+
+    .classic-seal-frame {
+      border: 1px solid #C41E3A;
+      border-radius: 50%;
+      padding: 3px;
+      display: inline-block;
+      line-height: 0;
+      background: transparent;
+    }
+
+    .classic-seal-image {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      border-radius: 50%;
+      opacity: 0.85;
+      mix-blend-mode: multiply;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    /* === Info Block (full-width grid table) === */
+    .classic-info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    .classic-info-table td {
+      border: 1px solid #333;
+      padding: 6px 10px;
+      font-size: 11px;
+      vertical-align: top;
+    }
+
+    .classic-info-label {
+      width: 100px;
+      font-weight: bold;
+    }
+
+    .classic-info-value {
+      /* remaining width */
+    }
+
+    /* === Items Table (full grid) === */
+    .classic-items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0;
+    }
+
+    .classic-items-table th {
+      background: #f0f0f0;
+      font-weight: bold;
+      font-size: 10px;
+      padding: 7px 8px;
+      border: 1px solid #333;
+      text-align: center;
+    }
+
+    .classic-items-table td {
+      padding: 6px 8px;
+      font-size: 10px;
+      border: 1px solid #333;
+    }
+
+    .classic-items-table .col-name {
+      width: 45%;
+      text-align: left;
+    }
+
+    .classic-items-table .col-qty {
+      width: 10%;
+      text-align: right;
+    }
+
+    .classic-items-table .col-unit {
+      width: 10%;
+      text-align: center;
+    }
+
+    .classic-items-table .col-price {
+      width: 15%;
+      text-align: right;
+    }
+
+    .classic-items-table .col-total {
+      width: 20%;
+      text-align: right;
+    }
+
+    .classic-items-table .item-name {
+      text-align: left;
+    }
+
+    .classic-items-table .item-qty {
+      text-align: right;
+    }
+
+    .classic-items-table .item-unit {
+      text-align: center;
+    }
+
+    .classic-items-table .item-price {
+      text-align: right;
+    }
+
+    .classic-items-table .item-total {
+      text-align: right;
+    }
+
+    /* "以下余白" row */
+    .classic-items-table .blank-row td {
+      text-align: center;
+      color: #666;
+      font-size: 10px;
+      padding: 6px 8px;
+    }
+
+    /* === Totals (integrated into table area) === */
+    .classic-totals-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    .classic-totals-table td {
+      padding: 6px 10px;
+      font-size: 11px;
+      border: 1px solid #333;
+    }
+
+    .classic-totals-table .totals-label {
+      width: 45%;
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .classic-totals-table .totals-value {
+      text-align: right;
+    }
+
+    .classic-totals-table .total-row td {
+      border-top: double 3px #000;
+      font-weight: bold;
+      font-size: 13px;
+      padding: 8px 10px;
+    }
+
+    .classic-totals-table .tax-breakdown-row td {
+      font-size: 10px;
+      color: #333;
+    }
+
+    /* === Notes Section === */
+    .classic-notes {
+      margin-top: 20px;
+      border: 2px solid #000;
+    }
+
+    .classic-notes-title {
+      font-weight: bold;
+      font-size: 11px;
+      padding: 6px 10px;
+      border-bottom: 1px solid #000;
+    }
+
+    .classic-notes-content {
+      padding: 10px;
+      font-size: 10px;
+      white-space: pre-wrap;
+      min-height: 40px;
+    }
+
+    /* === Print Styles === */
+    @media print {
+      body {
+        padding: 15px;
+      }
+      .document-container {
+        max-width: none;
+      }
+    }
+  
+    
+    .block-layout-top,
+.block-layout-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+.block-layout-cell {
+  /* per-cell inner margin is controlled by inner content; wrapper itself has no padding */
+}
+.block-layout-cell.cell-top-left,
+.block-layout-cell.cell-bottom-left {
+  text-align: left;
+}
+.block-layout-cell.cell-top-center,
+.block-layout-cell.cell-bottom-center {
+  text-align: center;
+}
+.block-layout-cell.cell-top-right,
+.block-layout-cell.cell-bottom-right {
+  text-align: right;
+}
+  </style>
+</head>
+<body>
+  <div class="document-container">
+    
+    <!-- Title with "御" prefix and double underline -->
+    <div class="classic-title">御請求書</div>
+
+    <!-- Meta info (right-aligned): date, document number -->
+    
+    <div class="classic-meta">
+      <div class="classic-meta-row">
+        <span class="classic-meta-label">請求日:</span> 2026年1月30日
+      </div>
+      <div class="classic-meta-row">
+        <span class="classic-meta-label">請求書番号:</span> INV-001
+      </div>
+    </div>
+  
+
+    <!-- Client name (left-aligned, full width) -->
+    
+    <div class="classic-client">
+      <div class="classic-client-name">テスト顧客 御中</div>
+      <div class="classic-client-address">大阪府大阪市テスト町1-1</div>
+    </div>
+  
+
+    <!-- Greeting text -->
+    <div class="classic-greeting">下記のとおり、御請求申し上げます。</div>
+
+    <!-- Issuer info (right-aligned, full width) with seal -->
+    
+    <div class="classic-issuer">
+      <div class="classic-issuer-company">テスト株式会社</div>
+<div class="classic-issuer-address">東京都渋谷区テスト1-2-3</div>
+<div class="classic-issuer-tel">TEL: 03-1234-5678</div>
+<div class="classic-issuer-registration">登録番号: T1234567890123</div>
+    </div>
+  
+    <div class="block-layout-top"><div class="block-layout-cell cell-top-left" data-position="top-left">
+      <div class="classic-seal-container">
+        <div class="classic-seal-frame">
+          <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=" alt="印影" class="classic-seal-image" />
+        </div>
+      </div>
+    </div><div class="block-layout-cell cell-top-center" data-position="top-center"></div><div class="block-layout-cell cell-top-right" data-position="top-right"></div></div>
+
+    <!-- Info block (subject, period, bank info) -->
+    
+    <table class="classic-info-table">
+      
+      <tr>
+        <td class="classic-info-label">件名</td>
+        <td class="classic-info-value">テスト工事案件</td>
+      </tr>
+    
+      <tr>
+        <td class="classic-info-label">支払期限</td>
+        <td class="classic-info-value">2026年2月28日</td>
+      </tr>
+    
+      <tr>
+        <td class="classic-info-label">振込先</td>
+        <td class="classic-info-value">みずほ銀行 渋谷 普通 1234567<br>テスト株式会社</td>
+      </tr>
+    
+    </table>
+  
+
+    <!-- Line items table (full grid) -->
+    
+    <table class="classic-items-table">
+      <thead>
+        <tr>
+          <th class="col-name">摘要</th>
+          <th class="col-qty">数量</th>
+          <th class="col-unit">単位</th>
+          <th class="col-price">単価（税抜）</th>
+          <th class="col-total">金額（税抜）</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="item-name">テスト工事</td>
+        <td class="item-qty">1</td>
+        <td class="item-unit">式</td>
+        <td class="item-price">10,000</td>
+        <td class="item-total">10,000</td>
+      </tr>
+    
+        <tr class="blank-row">
+          <td colspan="5">以下余白</td>
+        </tr>
+      </tbody>
+    </table>
+  
+
+    <!-- Totals section -->
+    
+    <table class="classic-totals-table">
+      
+    <tr>
+      <td class="totals-label">小計（税抜）</td>
+      <td class="totals-value">10,000円</td>
+    </tr>
+  
+      <tr class="tax-breakdown-row">
+        <td class="totals-label">消費税(10%)</td>
+        <td class="totals-value">1,000円</td>
+      </tr>
+    
+    <tr class="total-row">
+      <td class="totals-label">合計（税込）</td>
+      <td class="totals-value">11,000円</td>
+    </tr>
+  
+    </table>
+  
+
+    <!-- Notes section -->
+    
+    <div class="classic-notes">
+      <div class="classic-notes-title">備考</div>
+      <div class="classic-notes-content">テスト備考欄</div>
+    </div>
+  
+  </div>
+</body>
+</html>

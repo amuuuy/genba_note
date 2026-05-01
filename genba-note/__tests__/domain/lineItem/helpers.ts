@@ -77,5 +77,6 @@ export function createTestDocumentWithLineItems(
     createdAt: now,
     updatedAt: now,
     carriedForwardAmount: null,
+    blockPlacements: null,
   };
 }

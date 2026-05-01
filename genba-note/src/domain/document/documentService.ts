@@ -14,6 +14,7 @@ import type {
   LineItem,
   IssuerSnapshot,
 } from '@/types/document';
+import type { BlockPlacements } from '@/types/blockPlacement';
 import type { DocumentServiceError, DomainResult } from './types';
 import { successResult, errorResult, createDocumentServiceError } from './types';
 import {
@@ -59,6 +60,11 @@ export interface CreateDocumentInput {
 
 /**
  * Input for updating a document
+ *
+ * `blockPlacements` is tri-state (SPEC §3.3.1):
+ * - `undefined` (omitted) … no change, keep existing value
+ * - `null` … 「最初の配置に戻す」 (reset to template default)
+ * - `BlockPlacements` … set partial or full override
  */
 export interface UpdateDocumentInput {
   clientName?: string;
@@ -71,6 +77,7 @@ export interface UpdateDocumentInput {
   lineItems?: Omit<LineItem, 'id'>[];
   carriedForwardAmount?: number | null;
   notes?: string | null;
+  blockPlacements?: BlockPlacements | null;
 }
 
 /**
@@ -91,6 +98,23 @@ function addLineItemIds(lineItems: Omit<LineItem, 'id'>[]): LineItem[] {
     ...item,
     id: generateUUID(),
   }));
+}
+
+/**
+ * Tri-state merge for blockPlacements (SPEC §3.3 / §3.3.1).
+ *
+ *   undefined → no-op (keep existing)
+ *   null      → reset to template default (clear all overrides)
+ *   object    → merge into existing (既存 partial override は維持、
+ *               同じ key は上書き、欠けてる key はテンプレデフォルトに倒れる)
+ */
+function mergeBlockPlacements(
+  existing: BlockPlacements | null,
+  incoming: BlockPlacements | null | undefined
+): BlockPlacements | null {
+  if (incoming === undefined) return existing;
+  if (incoming === null) return null;
+  return { ...(existing ?? {}), ...incoming };
 }
 
 /**
@@ -235,6 +259,7 @@ export async function createDocument(
     issuerSnapshot,
     createdAt: now,
     updatedAt: now,
+    blockPlacements: null,
   };
 
   // Validate document
@@ -369,6 +394,17 @@ export async function updateDocument(
         ? updates.carriedForwardAmount
         : existing.carriedForwardAmount,
     notes: updates.notes !== undefined ? updates.notes : existing.notes,
+    // SPEC §3.3 / §3.3.1 — blockPlacements is tri-state with partial merge:
+    //   undefined → no-op (keep existing)
+    //   null      → reset to template default (clear all overrides)
+    //   object    → MERGE with existing (既存 partial override は維持、
+    //               同じ key は上書き)
+    // UI が partial update (1 ブロックだけ) を送っても他ブロック override が
+    // 消えないことを core レイヤで保証する。
+    blockPlacements: mergeBlockPlacements(
+      existing.blockPlacements,
+      updates.blockPlacements
+    ),
     updatedAt: Date.now(),
   };
 

@@ -28,7 +28,7 @@ import type { Customer } from '@/types/customer';
 import { useDocumentEdit } from '@/hooks/useDocumentEdit';
 import { useLineItemEditor } from '@/hooks/useLineItemEditor';
 import { useReadOnlyMode } from '@/hooks/useReadOnlyMode';
-import { DocumentEditForm, SaveActionSheet, PublishConfirmModal } from '@/components/document/edit';
+import { DocumentEditForm, SaveActionSheet, PublishConfirmModal, BlockPlacementModal } from '@/components/document/edit';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { WarningDialog } from '@/components/common';
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
@@ -67,6 +67,7 @@ export default function DocumentEditScreen() {
     updateField,
     updateCustomerId,
     updateLineItems,
+    updateBlockPlacements,
     save,
     changeStatus,
     shouldShowSentWarning,
@@ -86,6 +87,8 @@ export default function DocumentEditScreen() {
   const [pdfValidation, setPdfValidation] = useState<PdfValidationResult | null>(null);
   const [showFilenameEdit, setShowFilenameEdit] = useState(false);
   const [savedDocumentForPdf, setSavedDocumentForPdf] = useState<Document | null>(null);
+  // BlockPlacementModal 開閉 (SPEC §6.7 「見た目」ボタンから開く)
+  const [showBlockPlacementModal, setShowBlockPlacementModal] = useState(false);
 
   // Default filename for the FilenameEditModal (e.g., "INV-040_請求書")
   const defaultFilename = useMemo(() => {
@@ -199,7 +202,16 @@ export default function DocumentEditScreen() {
   const handlePreview = useCallback(() => {
     setShowActionSheet(false);
 
-    // Build document data for preview
+    // Build document data for preview.
+    // carriedForwardAmount は save/update 経路と同じ変換規約:
+    // 空文字 → null、parseInt → NaN なら null、それ以外は number。
+    // これがないと未保存 preview で繰越金額が脱落して合計が編集画面とズレる
+    // (codex P3 final review iter2 blocking)。
+    const carriedRaw = state.values.carriedForwardAmount;
+    const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
+    const carriedForwardAmount =
+      carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
+
     const previewDocument: Partial<Document> = {
       id: state.documentId || '',
       documentNo: state.documentNo || '',
@@ -213,6 +225,7 @@ export default function DocumentEditScreen() {
       dueDate: state.values.dueDate || null,
       paidAt: state.values.paidAt || null,
       lineItems: state.lineItems,
+      carriedForwardAmount,
       notes: state.values.notes || null,
       issuerSnapshot: state.issuerSnapshot ?? {
         companyName: null,
@@ -226,6 +239,10 @@ export default function DocumentEditScreen() {
       },
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
+      // preview に伝播させる。これがないと保存済み override が preview で
+      // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
+      blockPlacements: state.blockPlacements,
     };
 
     // Navigate to preview with the document data
@@ -233,7 +250,7 @@ export default function DocumentEditScreen() {
       pathname: '/document/preview',
       params: { previewData: JSON.stringify(previewDocument) },
     });
-  }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot]);
+  }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot, state.blockPlacements]);
 
   // Handle save as draft (existing save behavior)
   const handleSaveDraft = useCallback(async () => {
@@ -546,44 +563,87 @@ export default function DocumentEditScreen() {
               <Ionicons name="chevron-back" size={28} color={isPublishing ? '#C7C7CC' : '#007AFF'} />
             </Pressable>
           ),
-          headerRight: () => (
-            <View style={styles.headerButtons}>
-              <Pressable
-                onPress={handleActionSheetOpen}
-                disabled={state.isSaving || isPublishing || isReadOnlyMode}
-                style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
-                accessibilityLabel={isReadOnlyMode ? '読み取り専用モード' : state.isSaving || isPublishing ? '処理中' : 'アクション'}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode, busy: state.isSaving || isPublishing }}
-              >
-                {state.isSaving || isPublishing ? (
-                  <ActivityIndicator size="small" color="#007AFF" />
-                ) : (
+          headerRight: () => {
+            // SPEC §6.7.1 codex Q4=A: 新規未保存書類 (state.documentId 未確定) では
+            // 「見た目」ボタンを disabled にし、近くにヒントを表示する (form 上部)。
+            // updateDocument(id, ...) は永続 ID 必須で、id='new' では呼べない。
+            const blockPlacementButtonDisabled =
+              !state.documentId ||
+              state.isSaving ||
+              isPublishing ||
+              isReadOnlyMode;
+            return (
+              <View style={styles.headerButtons}>
+                <Pressable
+                  onPress={() => setShowBlockPlacementModal(true)}
+                  disabled={blockPlacementButtonDisabled}
+                  style={[
+                    styles.headerButton,
+                    blockPlacementButtonDisabled && styles.headerButtonDisabled,
+                  ]}
+                  accessibilityLabel={
+                    !state.documentId
+                      ? '見た目を整える (先に保存が必要)'
+                      : '見た目を整える'
+                  }
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: blockPlacementButtonDisabled }}
+                >
+                  {/* SPEC §6.7: アイコン + ラベル両方表示で分かりやすく */}
                   <View style={styles.actionButtonContent}>
-                    <Text style={[styles.saveButtonText, isReadOnlyMode && styles.saveButtonTextDisabled]}>保存</Text>
                     <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={isReadOnlyMode ? '#999' : '#007AFF'}
-                      style={styles.actionChevron}
+                      name="grid-outline"
+                      size={18}
+                      color={blockPlacementButtonDisabled ? '#C7C7CC' : '#007AFF'}
+                      style={styles.blockPlacementButtonIcon}
                     />
+                    <Text
+                      style={[
+                        styles.saveButtonText,
+                        blockPlacementButtonDisabled && styles.saveButtonTextDisabled,
+                      ]}
+                    >
+                      見た目
+                    </Text>
                   </View>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={handlePublishPdf}
-                disabled={state.isSaving || isPublishing || isReadOnlyMode}
-                style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
-                accessibilityLabel="PDF発行"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode }}
-              >
-                <Text style={[styles.saveButtonText, (state.isSaving || isPublishing || isReadOnlyMode) && styles.saveButtonTextDisabled]}>
-                  PDF
-                </Text>
-              </Pressable>
-            </View>
-          ),
+                </Pressable>
+                <Pressable
+                  onPress={handleActionSheetOpen}
+                  disabled={state.isSaving || isPublishing || isReadOnlyMode}
+                  style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
+                  accessibilityLabel={isReadOnlyMode ? '読み取り専用モード' : state.isSaving || isPublishing ? '処理中' : 'アクション'}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode, busy: state.isSaving || isPublishing }}
+                >
+                  {state.isSaving || isPublishing ? (
+                    <ActivityIndicator size="small" color="#007AFF" />
+                  ) : (
+                    <View style={styles.actionButtonContent}>
+                      <Text style={[styles.saveButtonText, isReadOnlyMode && styles.saveButtonTextDisabled]}>保存</Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={isReadOnlyMode ? '#999' : '#007AFF'}
+                        style={styles.actionChevron}
+                      />
+                    </View>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={handlePublishPdf}
+                  disabled={state.isSaving || isPublishing || isReadOnlyMode}
+                  style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
+                  accessibilityLabel="PDF発行"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode }}
+                >
+                  <Text style={[styles.saveButtonText, (state.isSaving || isPublishing || isReadOnlyMode) && styles.saveButtonTextDisabled]}>
+                    PDF
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          },
         }}
       />
 
@@ -592,6 +652,24 @@ export default function DocumentEditScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
+        {/* SPEC §6.7.1: 新規未保存書類では「見た目」ボタン disabled、近くにヒント */}
+        {!state.documentId && (
+          <View
+            style={styles.blockPlacementHint}
+            accessibilityRole="text"
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={14}
+              color="#666"
+              style={styles.blockPlacementHintIcon}
+            />
+            <Text style={styles.blockPlacementHintText}>
+              先に保存すると見た目を整えられます
+            </Text>
+          </View>
+        )}
+
         <DocumentEditForm
           values={state.values}
           lineItems={lineItemEditor.lineItems}
@@ -652,6 +730,18 @@ export default function DocumentEditScreen() {
         onCancel={handleFilenameCancel}
         testID="edit-filename-modal"
       />
+
+      {/* SPEC §6.2 「見た目を整える」モーダル — documentId 確定済の時のみ render */}
+      {state.documentId && (
+        <BlockPlacementModal
+          visible={showBlockPlacementModal}
+          documentId={state.documentId}
+          currentPlacements={state.blockPlacements}
+          onClose={() => setShowBlockPlacementModal(false)}
+          onUpdated={updateBlockPlacements}
+          testID="block-placement-modal"
+        />
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -698,6 +788,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  blockPlacementHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F2F2F7',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
+  },
+  blockPlacementHintIcon: {
+    marginRight: 6,
+  },
+  blockPlacementHintText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  blockPlacementButtonIcon: {
+    marginRight: 4,
   },
   headerButton: {
     padding: 4,

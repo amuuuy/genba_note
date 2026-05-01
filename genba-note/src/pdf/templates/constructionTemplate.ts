@@ -11,7 +11,7 @@
  * Supports both estimate and invoice document types via getDocumentLabels().
  */
 
-import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { TemplateOptions } from './templateRegistry';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from '@/pdf/types';
 import { getBackgroundCss, getBackgroundHtml } from '@/pdf/backgroundDesigns';
@@ -24,6 +24,16 @@ import {
   isValidImageDataUri,
   parseAddressWithPostalCode,
 } from '@/pdf/templateUtils';
+import { isDefaultResolvedPlacement } from '@/pdf/blockPlacementResolver';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
+import {
+  computePerBlockStatus,
+  placeBlocks,
+  renderBlockLayoutTop,
+  renderBlockLayoutBottom,
+  BLOCK_LAYOUT_GRID_CSS,
+  type RenderedBlocks,
+} from '@/pdf/blockPlacementLayout';
 
 // Minimum number of visible table rows (data + empty)
 const MIN_TABLE_ROWS = 8;
@@ -314,14 +324,21 @@ function getConstructionCss(sealSizePx: number): string {
 
 // === Section Renderers ===
 
-function renderIssuerBlock(
+// === Fragment primitives (P4-C-5 CONSTRUCTION, SPEC §7.2.5) ===
+// FORMAL/MODERN と類似 (seal は flex row 隣で別 render)。
+
+function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
+  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
+  if (!hasSeal) return '';
+  return `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`;
+}
+
+function buildIssuerInfoLines(
   doc: DocumentWithTotals,
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null,
-  sealSizePx: number
-): string {
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string[] {
   const { issuerSnapshot } = doc;
   const labels = getDocumentLabels(doc.type);
-  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
   const parsed = parseAddressWithPostalCode(issuerSnapshot.address);
 
   const lines: string[] = [];
@@ -340,38 +357,61 @@ function renderIssuerBlock(
     lines.push(`<div class="issuer-line">${escapeHtml(parsed.addressLine2)}</div>`);
   }
 
-  // TEL / FAX (separate lines to avoid overflow in narrow column)
   if (issuerSnapshot.phone) {
     lines.push(`<div class="issuer-line">TEL: ${escapeHtml(issuerSnapshot.phone)}</div>`);
   }
   if (issuerSnapshot.fax) {
     lines.push(`<div class="issuer-line">FAX: ${escapeHtml(issuerSnapshot.fax)}</div>`);
   }
-
-  // E-mail
   if (issuerSnapshot.email) {
     lines.push(`<div class="issuer-line">E-mail: ${escapeHtml(issuerSnapshot.email)}</div>`);
   }
-
-  // Contact person
   if (issuerSnapshot.contactPerson) {
     lines.push(`<div class="issuer-line">担当: ${escapeHtml(issuerSnapshot.contactPerson)}</div>`);
   }
 
-  // Registration number (invoice only)
   if (labels.showRegistrationNumber && sensitiveSnapshot?.invoiceNumber) {
     lines.push(`<div class="issuer-line">登録番号: ${escapeHtml(sensitiveSnapshot.invoiceNumber)}</div>`);
   }
 
-  if (lines.length === 0 && !hasSeal) {
+  return lines;
+}
+
+/**
+ * Issuer info text (seal を含まない construction-issuer-box) — SPEC §7.2.5。
+ * override 経路で seal が moved の時 header 相当を seal なしで出力。
+ */
+function renderIssuerInfoText(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot);
+  if (lines.length === 0) return '';
+  return `
+    <div class="construction-issuer-box">
+      <div class="issuer-seal-row">
+        <div>
+          ${lines.join('\n          ')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render issuer block — legacy composition (seal beside lines via flex row).
+ */
+function renderIssuerBlock(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot);
+  const sealHtml = renderSealFragment(doc.issuerSnapshot);
+
+  if (lines.length === 0 && sealHtml === '') {
     return '';
   }
 
-  const sealHtml = hasSeal
-    ? `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`
-    : '';
-
-  // Put seal beside the last line using flex row
   return `
     <div class="construction-issuer-box">
       <div class="issuer-seal-row">
@@ -458,9 +498,11 @@ function renderTotalsSection(doc: DocumentWithTotals): string {
   `;
 }
 
-function renderBankInfoSection(
-  sensitiveSnapshot: SensitiveIssuerSnapshot | null
-): string {
+/**
+ * Bank info 単独 fragment — SPEC §7.2.5。CONSTRUCTION の bank は独立 div なので
+ * grid cell に直接投入可能 (MODERN と同 pattern、wrap 不要)。
+ */
+function renderBankFragment(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
   if (!hasBankInfo(sensitiveSnapshot)) return '';
 
   const lines: string[] = [];
@@ -488,13 +530,27 @@ function renderBankInfoSection(
   `;
 }
 
-function renderNotesSection(doc: DocumentWithTotals): string {
+function renderBankInfoSection(
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  return renderBankFragment(sensitiveSnapshot);
+}
+
+/**
+ * Notes 単独 fragment — SPEC §7.2.5。
+ * CONSTRUCTION は notes 空でも wrapper を出す (FORMAL/ACCOUNTING/CLASSIC と同じ)。
+ */
+function renderNotesFragment(doc: DocumentWithTotals): string {
   return `
     <div class="construction-notes-section">
       <div class="notes-title">備考</div>
       <div class="notes-content">${doc.notes ? escapeHtml(doc.notes) : ''}</div>
     </div>
   `;
+}
+
+function renderNotesSection(doc: DocumentWithTotals): string {
+  return renderNotesFragment(doc);
 }
 
 // === Main Template Generator ===
@@ -510,6 +566,11 @@ export function generateConstructionTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
+  // SPEC §5.1 / §7.2 hybrid pattern (FORMAL/ACCOUNTING/SIMPLE/CLASSIC/MODERN と同 pattern):
+  //   default 一致 → legacy DOM そのまま
+  //   override   → block-by-block extraction + dual anchor grid (P4-C-5 CONSTRUCTION)
+  const isDefault = isDefaultResolvedPlacement(options.blockPlacements, 'CONSTRUCTION');
+
   const labels = getDocumentLabels(doc.type);
   const sealSizePx = getSealSizePx(options.sealSize ?? DEFAULT_SEAL_SIZE, 'CONSTRUCTION');
   const backgroundCss = getBackgroundCss(options.backgroundDesign, options.backgroundImageDataUrl);
@@ -544,8 +605,56 @@ export function generateConstructionTemplate(
   // Document number
   const docNoHtml = `<div style="font-size: 11px; margin-top: 4px;">${escapeHtml(labels.numberLabel)}: ${escapeHtml(doc.documentNo)}</div>`;
 
-  // Issuer block
-  const issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot, sealSizePx);
+  // Block placement decisions (legacy / override)
+  let issuerHtml: string;
+  let bankHtml: string;
+  let notesHtml: string;
+  let blockLayoutTopHtml = '';
+  let blockLayoutBottomHtml = '';
+  let overrideCss = '';
+
+  if (isDefault) {
+    issuerHtml = renderIssuerBlock(doc, sensitiveSnapshot);
+    bankHtml = labels.showBankInfo ? renderBankInfoSection(sensitiveSnapshot) : '';
+    notesHtml = renderNotesSection(doc);
+  } else {
+    const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.CONSTRUCTION;
+    const perBlock = computePerBlockStatus(options.blockPlacements, templateDefault);
+
+    issuerHtml = perBlock.companyStamp.isDefault
+      ? renderIssuerBlock(doc, sensitiveSnapshot)
+      : renderIssuerInfoText(doc, sensitiveSnapshot);
+    bankHtml = perBlock.bankAccount.isDefault && labels.showBankInfo
+      ? renderBankInfoSection(sensitiveSnapshot)
+      : '';
+    notesHtml = perBlock.remarks.isDefault ? renderNotesSection(doc) : '';
+
+    // Grid placement: moved blocks → cells. CONSTRUCTION の bank は独立 div、
+    // wrap 不要 (MODERN と同 pattern)。
+    const renderedBlocks: RenderedBlocks = {
+      bankAccount: !perBlock.bankAccount.isDefault && labels.showBankInfo
+        ? renderBankFragment(sensitiveSnapshot)
+        : '',
+      companyStamp: !perBlock.companyStamp.isDefault
+        ? renderSealFragment(doc.issuerSnapshot)
+        : '',
+      remarks: !perBlock.remarks.isDefault
+        ? renderNotesFragment(doc)
+        : '',
+    };
+
+    const cells = placeBlocks(options.blockPlacements, renderedBlocks);
+    const topRegion = renderBlockLayoutTop(cells);
+    const bottomRegion = renderBlockLayoutBottom(cells);
+
+    blockLayoutTopHtml = topRegion ? `\n    ${topRegion}` : '';
+    blockLayoutBottomHtml = bottomRegion ? `\n    ${bottomRegion}` : '';
+
+    if (topRegion || bottomRegion) {
+      overrideCss = `
+    ${BLOCK_LAYOUT_GRID_CSS}`;
+    }
+  }
 
   // Total amount box
   const totalBoxHtml = `
@@ -561,12 +670,6 @@ export function generateConstructionTemplate(
   // Totals section
   const totalsHtml = renderTotalsSection(doc);
 
-  // Bank info (invoice only)
-  const bankHtml = labels.showBankInfo ? renderBankInfoSection(sensitiveSnapshot) : '';
-
-  // Notes
-  const notesHtml = renderNotesSection(doc);
-
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -574,7 +677,7 @@ export function generateConstructionTemplate(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     ${css}
-    ${backgroundCss}
+    ${backgroundCss}${overrideCss}
   </style>
 </head>
 <body>
@@ -601,13 +704,13 @@ export function generateConstructionTemplate(
       <div class="header-right">
         ${issuerHtml}
       </div>
-    </div>
+    </div>${blockLayoutTopHtml}
 
     <!-- Line items -->
     ${tableHtml}
 
     <!-- Totals -->
-    ${totalsHtml}
+    ${totalsHtml}${blockLayoutBottomHtml}
 
     <!-- Bank info (invoice only) -->
     ${bankHtml}

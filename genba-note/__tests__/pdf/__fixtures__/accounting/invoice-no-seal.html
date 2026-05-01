@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic Pro', 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #000;
+      background: #fff;
+      padding: 30px 35px;
+    }
+
+    .document-container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    /* === Title Section === */
+    .title-section {
+      margin-bottom: 20px;
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .title-spacer {
+      flex: 1;
+    }
+
+    .document-title {
+      flex: 0 0 auto;
+      font-size: 24px;
+      font-weight: bold;
+      letter-spacing: 0.3em;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #000;
+    }
+
+    .title-meta {
+      flex: 1;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* Meta Info Table */
+    .meta-table {
+      border-collapse: collapse;
+    }
+
+    .meta-table td {
+      padding: 2px 8px;
+      font-size: 11px;
+    }
+
+    .meta-label {
+      text-align: right;
+    }
+
+    .meta-value {
+      text-align: right;
+    }
+
+    /* === Client Section === */
+    .client-section {
+      margin-bottom: 10px;
+    }
+
+    .client-name {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .client-suffix {
+      font-weight: normal;
+      margin-left: 8px;
+    }
+
+    .client-address {
+      font-size: 11px;
+      color: #333333;
+    }
+
+    .greeting-text {
+      font-size: 11px;
+      margin: 10px 0 15px 0;
+    }
+
+    /* === Issuer Section (Standalone, Right-aligned) === */
+    .issuer-section-standalone {
+      text-align: right;
+      margin: 15px 0;
+      padding: 10px 0;
+    }
+
+    /* === Info Block Section (Full Width) === */
+    .info-block-section {
+      margin: 15px 0;
+    }
+
+    /* === Issuer Block === */
+    .issuer-block {
+      text-align: right;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .issuer-company {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .issuer-postal,
+    .issuer-address,
+    .issuer-tel,
+    .issuer-registration {
+      margin-bottom: 2px;
+    }
+
+    .issuer-registration {
+      font-size: 10px;
+      color: #333;
+    }
+
+    /* Legacy: issuer-block 内の seal は右寄せ + 上下マージン。
+       Override branch で seal が moved されたとき (grid cell 配置) は
+       block-layout-cell の text-align (left/center/right) を継承させたいため、
+       .issuer-seal 単独ではなく .issuer-block 内に scope する
+       (Codex P4-C-3 review iter1 blocking 反映)。 */
+    .issuer-block .issuer-seal {
+      text-align: right;
+      margin: 8px 0;
+    }
+
+    .seal-image {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      opacity: 0.85;
+      mix-blend-mode: multiply;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .issuer-contact {
+      margin-top: 4px;
+    }
+
+    /* === Info Block (Black Labels) === */
+    .info-block-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000;
+    }
+
+    .info-block-table tr {
+      border-bottom: 1px solid #ccc;
+    }
+
+    .info-block-table tr:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      background: #000;
+      color: #fff;
+      padding: 8px 12px;
+      width: 80px;
+      font-weight: bold;
+      font-size: 11px;
+      vertical-align: top;
+    }
+
+    .info-value {
+      padding: 8px 12px;
+      font-size: 11px;
+      background: #fff;
+      vertical-align: top;
+    }
+
+    /* === Carried Forward Block === */
+    .carried-forward-block {
+      display: flex;
+      border: 1px solid #000;
+      margin: 12px 0;
+      width: 55%;
+    }
+
+    .cf-label {
+      background: #000;
+      color: #fff;
+      padding: 8px 12px;
+      font-weight: bold;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .cf-value {
+      flex: 1;
+      padding: 8px 12px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: bold;
+      background: #fff;
+      border-left: 1px solid #000;
+    }
+
+    /* === Grand Total Block === */
+    .grand-total-block {
+      display: flex;
+      border: 2px solid #000;
+      margin: 15px 0;
+      width: 55%;
+    }
+
+    .grand-total-label {
+      background: #000;
+      color: #fff;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .grand-total-value {
+      flex: 1;
+      padding: 12px 20px;
+      text-align: right;
+      font-size: 22px;
+      font-weight: bold;
+      background: #fff;
+      border-left: 2px solid #000;
+    }
+
+    /* === Line Items Table === */
+    .formal-items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    .formal-items-table th {
+      background: #000;
+      color: #fff;
+      padding: 8px 10px;
+      font-weight: bold;
+      font-size: 10px;
+      text-align: center;
+      border: 1px solid #000;
+    }
+
+    .formal-items-table td {
+      padding: 7px 10px;
+      font-size: 10px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .formal-items-table tr:nth-child(even) {
+      background: #f8f8f8;
+    }
+
+    .formal-items-table .col-name {
+      width: 45%;
+      text-align: left;
+    }
+
+    .formal-items-table .col-qty {
+      width: 10%;
+      text-align: right;
+    }
+
+    .formal-items-table .col-unit {
+      width: 10%;
+      text-align: center;
+    }
+
+    .formal-items-table .col-price {
+      width: 15%;
+      text-align: right;
+    }
+
+    .formal-items-table .col-total {
+      width: 20%;
+      text-align: right;
+    }
+
+    .formal-items-table .item-name {
+      text-align: left;
+    }
+
+    .formal-items-table .item-qty {
+      text-align: right;
+    }
+
+    .formal-items-table .item-unit {
+      text-align: center;
+    }
+
+    .formal-items-table .item-price {
+      text-align: right;
+    }
+
+    .formal-items-table .item-total {
+      text-align: right;
+    }
+
+    /* === Tax Breakdown Section === */
+    .tax-breakdown-section {
+      display: flex;
+      justify-content: flex-end;
+      margin: 15px 0;
+    }
+
+    .tax-breakdown-table {
+      border-collapse: collapse;
+      min-width: 350px;
+    }
+
+    .tax-breakdown-table td {
+      padding: 4px 10px;
+      font-size: 10px;
+    }
+
+    .breakdown-rate {
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .breakdown-subtotal {
+      text-align: right;
+    }
+
+    .breakdown-tax-label {
+      text-align: left;
+      padding-left: 20px !important;
+    }
+
+    .breakdown-tax-value {
+      text-align: right;
+    }
+
+    .breakdown-total-row {
+      border-top: 1px solid #999;
+    }
+
+    .breakdown-total-label {
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .breakdown-total-value {
+      text-align: right;
+      font-weight: bold;
+    }
+
+    /* === Notes Section === */
+    .formal-notes-section {
+      margin: 20px 0;
+      border: 2px solid #000;
+      min-height: 50px;
+    }
+
+    .notes-title {
+      background: #000;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    .notes-content {
+      padding: 8px 10px;
+      font-size: 10px;
+      white-space: pre-wrap;
+      min-height: 30px;
+    }
+
+    /* === Print Styles === */
+    @media print {
+      body {
+        padding: 15px;
+      }
+      .document-container {
+        max-width: none;
+      }
+    }
+  
+    
+  </style>
+</head>
+<body>
+  <div class="document-container">
+    
+    <!-- Title with meta info -->
+    
+    <div class="title-section">
+      <div class="title-row">
+        <div class="title-spacer"></div>
+        <h1 class="document-title">請　求　書</h1>
+        <div class="title-meta">
+          <table class="meta-table">
+            <tr>
+              <td class="meta-label">No</td>
+              <td class="meta-value">INV-001</td>
+            </tr>
+            <tr>
+              <td class="meta-label">請求日</td>
+              <td class="meta-value">2026年1月30日</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+
+    <!-- Issuer section (standalone, right-aligned) -->
+    <div class="issuer-section-standalone">
+    <div class="issuer-block">
+      <div class="issuer-company">テスト株式会社</div>
+<div class="issuer-address">東京都渋谷区テスト1-2-3</div>
+<div class="issuer-tel">TEL: 03-1234-5678</div>
+<div class="issuer-registration">登録番号: T1234567890123</div>
+    </div>
+  </div>
+
+    <!-- Client section -->
+    <div class="client-section">
+      <div class="client-name">テスト顧客<span class="client-suffix">御中</span></div>
+      <div class="client-address">大阪府大阪市テスト町1-1</div>
+    </div>
+
+    <!-- Greeting -->
+    <div class="greeting-text">下記のとおり、御請求申し上げます。</div>
+
+    <!-- Info block (full width) -->
+    <div class="info-block-section">
+    <table class="info-block-table">
+      
+      <tr>
+        <td class="info-label">件名</td>
+        <td class="info-value">テスト工事案件</td>
+      </tr>
+    
+      <tr>
+        <td class="info-label">支払期限</td>
+        <td class="info-value">2026年2月28日</td>
+      </tr>
+    
+      <tr>
+        <td class="info-label">振込先</td>
+        <td class="info-value">みずほ銀行 渋谷 普通 1234567<br>テスト株式会社</td>
+      </tr>
+    
+    </table>
+  </div>
+
+    <!-- Line items table -->
+    
+    <table class="formal-items-table">
+      <thead>
+        <tr>
+          <th class="col-name">摘要</th>
+          <th class="col-qty">数量</th>
+          <th class="col-unit">単位</th>
+          <th class="col-price">単価</th>
+          <th class="col-total">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="item-name">テスト工事</td>
+        <td class="item-qty">1</td>
+        <td class="item-unit">式</td>
+        <td class="item-price">10,000</td>
+        <td class="item-total">10,000</td>
+      </tr>
+    
+      </tbody>
+    </table>
+  
+
+    <!-- Tax breakdown -->
+    
+    <div class="tax-breakdown-section">
+      <table class="tax-breakdown-table">
+        <tbody>
+          
+      <tr>
+        <td class="breakdown-rate">10%対象</td>
+        <td class="breakdown-subtotal">10,000円</td>
+        <td class="breakdown-tax-label">消費税(10%)</td>
+        <td class="breakdown-tax-value">1,000円</td>
+      </tr>
+    
+          <tr class="breakdown-total-row">
+            <td class="breakdown-total-label" colspan="2">小計（税抜）</td>
+            <td class="breakdown-total-value" colspan="2">10,000円</td>
+          </tr>
+          <tr class="breakdown-total-row">
+            <td class="breakdown-total-label" colspan="2">消費税合計</td>
+            <td class="breakdown-total-value" colspan="2">1,000円</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  
+
+    <!-- Carried forward (conditional) -->
+    
+
+    <!-- Grand total (after line items) -->
+    
+    <div class="grand-total-block">
+      <div class="grand-total-label">合計</div>
+      <div class="grand-total-value">11,000 円（税込）</div>
+    </div>
+  
+
+    <!-- Notes -->
+    
+    <div class="formal-notes-section">
+      <div class="notes-title">備考欄</div>
+      <div class="notes-content">テスト備考欄</div>
+    </div>
+  
+  </div>
+</body>
+</html>

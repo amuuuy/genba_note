@@ -13,7 +13,7 @@
  * - No black labels; labels are accent color small text
  */
 
-import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { TemplateOptions } from './templateRegistry';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from '@/pdf/types';
 import { getBackgroundCss, getBackgroundHtml } from '@/pdf/backgroundDesigns';
@@ -26,6 +26,16 @@ import {
   escapeHtml,
   isValidImageDataUri,
 } from '@/pdf/templateUtils';
+import { isDefaultResolvedPlacement } from '@/pdf/blockPlacementResolver';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
+import {
+  computePerBlockStatus,
+  placeBlocks,
+  renderBlockLayoutTop,
+  renderBlockLayoutBottom,
+  BLOCK_LAYOUT_GRID_CSS,
+  type RenderedBlocks,
+} from '@/pdf/blockPlacementLayout';
 
 // === Constants ===
 
@@ -114,16 +124,28 @@ function renderClient(doc: DocumentWithTotals): string {
   `;
 }
 
+// === Fragment primitives (P4-C-5 MODERN, SPEC §7.2.5) ===
+// FORMAL/ACCOUNTING/SIMPLE/CLASSIC で確立した pattern を MODERN に適用。
+// MODERN の seal は flexbox の隣 (FORMAL に類似)、bank/notes は独立 section。
+
 /**
- * Render issuer section (right-aligned, with seal)
+ * Seal 単独 fragment — SPEC §7.2.5。issuerSnapshot のみ参照。
  */
-function renderIssuer(
+function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
+  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
+  if (!hasSeal) return '';
+  return `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`;
+}
+
+/**
+ * Build issuer info lines (without seal). FORMAL と同 pattern (seal は別 render)。
+ */
+function buildIssuerInfoLines(
   doc: DocumentWithTotals,
   sensitiveSnapshot: SensitiveIssuerSnapshot | null
-): string {
+): string[] {
   const { issuerSnapshot } = doc;
   const labels = getDocumentLabels(doc.type);
-  const hasSeal = isValidImageDataUri(issuerSnapshot.sealImageBase64);
 
   const lines: string[] = [];
 
@@ -164,13 +186,43 @@ function renderIssuer(
     lines.push(`<div class="issuer-detail">担当: ${escapeHtml(issuerSnapshot.contactPerson)}</div>`);
   }
 
-  if (lines.length === 0 && !hasSeal) {
+  return lines;
+}
+
+/**
+ * Issuer info text (seal を含まない issuer-section) — SPEC §7.2.5。
+ * override 経路で seal が moved の時 header 相当を seal なしで出力。FORMAL と同 pattern。
+ */
+function renderIssuerInfoText(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot);
+  if (lines.length === 0) return '';
+  return `
+    <div class="issuer-section">
+      <div class="issuer-block">
+        <div class="issuer-info">
+          ${lines.join('\n          ')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render issuer section (right-aligned, with seal) — legacy composition.
+ */
+function renderIssuer(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot);
+  const sealHtml = renderSealFragment(doc.issuerSnapshot);
+
+  if (lines.length === 0 && sealHtml === '') {
     return '';
   }
-
-  const sealHtml = hasSeal
-    ? `<div class="issuer-seal"><img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="seal-image" /></div>`
-    : '';
 
   return `
     <div class="issuer-section">
@@ -263,9 +315,13 @@ function renderTotalsCard(doc: DocumentWithTotals): string {
 }
 
 /**
- * Render bank info section (invoice only)
+ * Bank info 単独 fragment — SPEC §7.2.5。
+ *
+ * MODERN の bank は独立 section (`<div class="bank-section">`) なので、grid cell
+ * に `<div>` のまま投入して HTML valid。ACCOUNTING/CLASSIC のように table wrapper を
+ * 追加する必要はない。
  */
-function renderBankInfo(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+function renderBankFragment(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
   if (!hasBankInfo(sensitiveSnapshot)) return '';
 
   const lines: string[] = [];
@@ -295,17 +351,31 @@ function renderBankInfo(sensitiveSnapshot: SensitiveIssuerSnapshot | null): stri
 }
 
 /**
- * Render notes section (borderless, top line only)
+ * Render bank info section (invoice only) — legacy composition.
  */
-function renderNotes(doc: DocumentWithTotals): string {
-  if (!doc.notes) return '';
+function renderBankInfo(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  return renderBankFragment(sensitiveSnapshot);
+}
 
+/**
+ * Notes 単独 fragment — SPEC §7.2.5。
+ * MODERN は doc.notes 空なら空文字 (SIMPLE と同 pattern)。
+ */
+function renderNotesFragment(doc: DocumentWithTotals): string {
+  if (!doc.notes) return '';
   return `
     <div class="notes-section">
       <div class="notes-title">備考</div>
       <div class="notes-content">${escapeHtml(doc.notes)}</div>
     </div>
   `;
+}
+
+/**
+ * Render notes section (borderless, top line only) — legacy composition.
+ */
+function renderNotes(doc: DocumentWithTotals): string {
+  return renderNotesFragment(doc);
 }
 
 // === CSS ===
@@ -634,23 +704,75 @@ export function generateModernTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
+  // SPEC §5.1 / §7.2 hybrid pattern (FORMAL/ACCOUNTING/SIMPLE/CLASSIC と同 pattern):
+  //   default 一致 → legacy DOM そのまま
+  //   override   → block-by-block extraction + dual anchor grid (P4-C-5 MODERN)
+  const isDefault = isDefaultResolvedPlacement(options.blockPlacements, 'MODERN');
+
   const labels = getDocumentLabels(doc.type);
   const sealSizePx = getSealSizePx(options.sealSize ?? DEFAULT_SEAL_SIZE, 'MODERN');
   const backgroundCss = getBackgroundCss(options.backgroundDesign, options.backgroundImageDataUrl);
   const backgroundHtml = getBackgroundHtml(options.backgroundDesign, options.backgroundImageDataUrl);
   const css = getModernCss(sealSizePx);
 
-  // Sections
+  // Sections (always)
   const titleHtml = `<h1 class="modern-title">${escapeHtml(labels.title)}</h1>`;
   const metaHtml = renderMeta(doc);
   const clientHtml = renderClient(doc);
-  const issuerHtml = renderIssuer(doc, sensitiveSnapshot);
   const tableHtml = renderLineItemsTable(doc);
   const totalsHtml = renderTotalsCard(doc);
 
-  // Conditional sections
-  const bankHtml = labels.showBankInfo ? renderBankInfo(sensitiveSnapshot) : '';
-  const notesHtml = renderNotes(doc);
+  // Block placement decisions (legacy / override)
+  let issuerHtml: string;
+  let bankHtml: string;
+  let notesHtml: string;
+  let blockLayoutTopHtml = '';
+  let blockLayoutBottomHtml = '';
+  let overrideCss = '';
+
+  if (isDefault) {
+    issuerHtml = renderIssuer(doc, sensitiveSnapshot);
+    bankHtml = labels.showBankInfo ? renderBankInfo(sensitiveSnapshot) : '';
+    notesHtml = renderNotes(doc);
+  } else {
+    const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.MODERN;
+    const perBlock = computePerBlockStatus(options.blockPlacements, templateDefault);
+
+    issuerHtml = perBlock.companyStamp.isDefault
+      ? renderIssuer(doc, sensitiveSnapshot)
+      : renderIssuerInfoText(doc, sensitiveSnapshot);
+    // bank: untouched-at-default なら legacy 位置に bank-section、moved/hidden なら省略
+    bankHtml = perBlock.bankAccount.isDefault && labels.showBankInfo
+      ? renderBankInfo(sensitiveSnapshot)
+      : '';
+    notesHtml = perBlock.remarks.isDefault ? renderNotes(doc) : '';
+
+    // Grid placement: moved blocks → cells.
+    // MODERN の bank-section は独立 div なので grid cell に直接置ける (table wrap 不要)
+    const renderedBlocks: RenderedBlocks = {
+      bankAccount: !perBlock.bankAccount.isDefault && labels.showBankInfo
+        ? renderBankFragment(sensitiveSnapshot)
+        : '',
+      companyStamp: !perBlock.companyStamp.isDefault
+        ? renderSealFragment(doc.issuerSnapshot)
+        : '',
+      remarks: !perBlock.remarks.isDefault
+        ? renderNotesFragment(doc)
+        : '',
+    };
+
+    const cells = placeBlocks(options.blockPlacements, renderedBlocks);
+    const topRegion = renderBlockLayoutTop(cells);
+    const bottomRegion = renderBlockLayoutBottom(cells);
+
+    blockLayoutTopHtml = topRegion ? `\n    ${topRegion}` : '';
+    blockLayoutBottomHtml = bottomRegion ? `\n    ${bottomRegion}` : '';
+
+    if (topRegion || bottomRegion) {
+      overrideCss = `
+    ${BLOCK_LAYOUT_GRID_CSS}`;
+    }
+  }
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -659,7 +781,7 @@ export function generateModernTemplate(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     ${css}
-    ${backgroundCss}
+    ${backgroundCss}${overrideCss}
   </style>
 </head>
 <body>
@@ -668,9 +790,9 @@ export function generateModernTemplate(
     ${titleHtml}
     ${metaHtml}
     ${clientHtml}
-    ${issuerHtml}
+    ${issuerHtml}${blockLayoutTopHtml}
     ${tableHtml}
-    ${totalsHtml}
+    ${totalsHtml}${blockLayoutBottomHtml}
     ${bankHtml}
     ${notesHtml}
   </div>

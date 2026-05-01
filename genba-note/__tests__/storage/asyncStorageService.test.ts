@@ -76,6 +76,7 @@ function createTestDocument(overrides?: Partial<Document>): Document {
     },
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    blockPlacements: null,
     ...overrides,
   };
 }
@@ -215,6 +216,92 @@ describe('asyncStorageService', () => {
       const result = await saveDocument(doc);
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('WRITE_ERROR');
+    });
+
+    // === blockPlacements read-time normalization (SPEC §4.2) ===
+    //
+    // v10 migration は no-op で既存書類を書き換えない。代わりに、読込時に
+    // `blockPlacements: undefined → null` 正規化を施すことで、以降の経路
+    // (duplicate / update / preview / convert) で `null` セマンティクスが
+    // 一貫する。lazy default を保ちつつ Document 型契約を守る方法。
+    describe('blockPlacements normalization on read (SPEC §4.2)', () => {
+      it('legacy document (missing blockPlacements field) → normalizes to null', async () => {
+        const legacy = createTestDocument({ id: 'legacy-1' });
+        const legacyWithoutField: Partial<Document> = { ...legacy };
+        delete legacyWithoutField.blockPlacements;
+        mockedAsyncStorage.getItem.mockResolvedValue(
+          JSON.stringify([legacyWithoutField])
+        );
+
+        const result = await getAllDocuments();
+        expect(result.success).toBe(true);
+        expect(result.data?.[0].blockPlacements).toBeNull();
+      });
+
+      it('explicit null is preserved as null', async () => {
+        const doc = createTestDocument({ id: 'null-1', blockPlacements: null });
+        mockedAsyncStorage.getItem.mockResolvedValue(JSON.stringify([doc]));
+
+        const result = await getAllDocuments();
+        expect(result.success).toBe(true);
+        expect(result.data?.[0].blockPlacements).toBeNull();
+      });
+
+      it('override object is preserved as-is', async () => {
+        const override = { bankAccount: 'top-left' as const };
+        const doc = createTestDocument({
+          id: 'override-1',
+          blockPlacements: override,
+        });
+        mockedAsyncStorage.getItem.mockResolvedValue(JSON.stringify([doc]));
+
+        const result = await getAllDocuments();
+        expect(result.success).toBe(true);
+        expect(result.data?.[0].blockPlacements).toEqual(override);
+      });
+
+      it('getDocumentById inherits the same normalization', async () => {
+        const legacy = createTestDocument({ id: 'legacy-by-id' });
+        const legacyWithoutField: Partial<Document> = { ...legacy };
+        delete legacyWithoutField.blockPlacements;
+        mockedAsyncStorage.getItem.mockResolvedValue(
+          JSON.stringify([legacyWithoutField])
+        );
+
+        const result = await getDocumentById('legacy-by-id');
+        expect(result.success).toBe(true);
+        expect(result.data?.blockPlacements).toBeNull();
+      });
+
+      // SPEC §8.3 rollback/resave 契約 (codex P3 final iter2 advisory 対応):
+      // v10 アプリで override を保存 → v9 アプリで再保存 (blockPlacements
+      // フィールドが落ちる) → v10 アプリで再読込 → null (= テンプレデフォルト)
+      // に戻る。これを end-to-end で固定し、v10 → v9 → v10 の rollback contract
+      // をテストレベルで明示する。
+      it('rollback round-trip: v10 override → v9 resave drops field → v10 read normalizes to null', async () => {
+        // 1. v10 アプリで override 保存
+        const v10Document = createTestDocument({
+          id: 'rollback-doc',
+          blockPlacements: { bankAccount: 'top-left', companyStamp: 'bottom-right' },
+        });
+
+        // 2. v9 アプリで再保存 (v9 は blockPlacements フィールドを知らない →
+        //    JSON.stringify 後にフィールドが消えた状態をシミュレート)
+        const v9Resaved: Partial<Document> = { ...v10Document };
+        delete v9Resaved.blockPlacements;
+
+        // 3. v10 アプリで再読込
+        mockedAsyncStorage.getItem.mockResolvedValue(JSON.stringify([v9Resaved]));
+        const result = await getDocumentById('rollback-doc');
+
+        // 4. read-time normalization で blockPlacements が null に戻る
+        //    (= 次回 preview/print でテンプレデフォルト配置で表示される)
+        expect(result.success).toBe(true);
+        expect(result.data?.blockPlacements).toBeNull();
+        // 他のフィールドは破壊されていない
+        expect(result.data?.id).toBe('rollback-doc');
+        expect(result.data?.clientName).toBe(v10Document.clientName);
+      });
     });
   });
 

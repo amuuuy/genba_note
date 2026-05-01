@@ -54,6 +54,7 @@ function createTestDocument(overrides?: Partial<Document>): Document {
     },
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    blockPlacements: null,
     ...overrides,
   };
 }

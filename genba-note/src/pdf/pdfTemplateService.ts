@@ -17,6 +17,35 @@ import { getTemplate, resolveTemplateId } from './templates/templateRegistry';
 import { injectSinglePageCssOnly } from './singlePageService';
 import './templates/registerAllTemplates';
 
+// Re-export resolveBlockPlacements from the leaf module so existing imports
+// from `@/pdf/pdfTemplateService` still work (back-compat shim). New code
+// (especially in domain layer) should import directly from
+// `@/pdf/blockPlacementResolver` to avoid pulling in HTML generation and
+// template registration side-effects.
+export { resolveBlockPlacements } from './blockPlacementResolver';
+import { resolveBlockPlacements, isDefaultResolvedPlacement } from './blockPlacementResolver';
+
+/**
+ * Templates that have a real override branch implemented.
+ *
+ * 全 6 テンプレ (FORMAL_STANDARD / ACCOUNTING / SIMPLE / CLASSIC / MODERN /
+ * CONSTRUCTION) で override branch (block-by-block extraction + dual anchor grid)
+ * 実装完了。
+ *
+ * Codex P4-C-2 review iter1 blocking 反映: 未実装テンプレへの非 default override
+ * を silent fallback すると placement bug が露見しないため、中央で reject する。
+ * 全テンプレ実装済の現状ではこの guard は実用的に発火しないが、将来テンプレ
+ * 追加時の defensive measure として残す。
+ */
+const TEMPLATES_WITH_OVERRIDE_BRANCH: ReadonlySet<DocumentTemplateId> = new Set([
+  'FORMAL_STANDARD',
+  'ACCOUNTING',
+  'SIMPLE',
+  'CLASSIC',
+  'MODERN',
+  'CONSTRUCTION',
+]);
+
 // Re-export formatting utilities from templateUtils for backwards compatibility
 export {
   formatCurrency,
@@ -71,6 +100,7 @@ export function generateFilenameTitle(documentNo: string, type: DocumentType): s
   const suffix = type === 'estimate' ? '見積書' : '請求書';
   return `${documentNo}_${suffix}`;
 }
+
 
 // === Section Renderers ===
 
@@ -598,7 +628,7 @@ function generateScreenTemplate(
  * @param input.templateId - Template ID for PDF output (M21). Falls back to doc.type default.
  */
 export function generateHtmlTemplate(input: PdfTemplateInput): PdfTemplateResult {
-  const { document: doc, sensitiveSnapshot, mode = 'screen', templateId, invoiceTemplateType, sealSize, backgroundDesign, backgroundImageDataUrl } = input;
+  const { document: doc, sensitiveSnapshot, mode = 'screen', templateId, invoiceTemplateType, sealSize, backgroundDesign, backgroundImageDataUrl, blockPlacements } = input;
 
   let html: string;
 
@@ -614,11 +644,35 @@ export function generateHtmlTemplate(input: PdfTemplateInput): PdfTemplateResult
     } else {
       resolvedId = resolveTemplateId(doc.type, undefined);
     }
+
+    // SPEC §3.4 shared resolver path: caller の override (`input.blockPlacements`)
+    // が指定されていればそれを、なければ document 保存値 (`doc.blockPlacements`)
+    // を使い、テンプレデフォルトとマージして `Required<BlockPlacements>` を作る。
+    // この 1 関数を経由することで preview / print / convert で配置決定ロジックを
+    // 重複させない (P4-A+B configuration)。
+    const resolvedBlockPlacements = resolveBlockPlacements(
+      blockPlacements !== undefined ? blockPlacements : doc.blockPlacements,
+      resolvedId
+    );
+
+    // P4-C-2-c safety net (Codex review iter1 blocking 反映):
+    // 未実装テンプレで非 default override が来た場合、generator は silent に
+    // 旧 DOM を出力してしまう (placement bug が露見しない)。中央で fail-fast。
+    if (
+      !isDefaultResolvedPlacement(resolvedBlockPlacements, resolvedId) &&
+      !TEMPLATES_WITH_OVERRIDE_BRANCH.has(resolvedId)
+    ) {
+      throw new Error(
+        `Template '${resolvedId}' does not yet support non-default blockPlacements override.`
+      );
+    }
+
     const generator = getTemplate(resolvedId);
     html = generator(doc, sensitiveSnapshot, {
       sealSize: sealSize ?? DEFAULT_SEAL_SIZE,
       backgroundDesign: backgroundDesign ?? 'NONE',
       backgroundImageDataUrl,
+      blockPlacements: resolvedBlockPlacements,
     });
   } else {
     // Use colorful screen template for preview

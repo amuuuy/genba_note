@@ -16,7 +16,7 @@
  * Supports both estimate (見積書) and invoice (請求書) document types.
  */
 
-import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
+import type { DocumentWithTotals, IssuerSnapshot, SensitiveIssuerSnapshot } from '@/types/document';
 import type { TemplateOptions } from './templateRegistry';
 import { getSealSizePx, DEFAULT_SEAL_SIZE } from '@/pdf/types';
 import { getBackgroundCss, getBackgroundHtml } from '@/pdf/backgroundDesigns';
@@ -30,6 +30,16 @@ import {
   escapeHtml,
   isValidImageDataUri,
 } from '@/pdf/templateUtils';
+import { isDefaultResolvedPlacement } from '@/pdf/blockPlacementResolver';
+import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
+import {
+  computePerBlockStatus,
+  placeBlocks,
+  renderBlockLayoutTop,
+  renderBlockLayoutBottom,
+  BLOCK_LAYOUT_GRID_CSS,
+  type RenderedBlocks,
+} from '@/pdf/blockPlacementLayout';
 
 // === Local Helpers ===
 
@@ -153,7 +163,10 @@ function getClassicStyles(sealSizePx: number): string {
     }
 
     /* === Seal (centered below issuer info) === */
-    .classic-seal-container {
+    /* Legacy: classic-issuer 内の seal は右寄せ。Override branch で seal が grid cell に
+       moved されたとき、cell の text-align を継承させたいため .classic-issuer 内に
+       scope する (P4-C-3 ACCOUNTING / P4-C-4 SIMPLE と同 pattern)。 */
+    .classic-issuer .classic-seal-container {
       display: flex;
       justify-content: flex-end;
       margin: 8px 0;
@@ -394,25 +407,94 @@ function renderGreeting(doc: DocumentWithTotals): string {
   return `<div class="classic-greeting">${escapeHtml(labels.greeting)}</div>`;
 }
 
+// === Fragment primitives (P4-C-4 CLASSIC, SPEC §7.2.5) ===
+// FORMAL/ACCOUNTING/SIMPLE と同 pattern。CLASSIC の特徴は seal が
+// `<div class="classic-seal-container">` 入れ子 (vermilion frame) で line array
+// に inline 挿入される点と、bank が `<tr>` (table-row、ACCOUNTING と類似) な点。
+
 /**
- * Render issuer section (right-aligned, full width)
- * Seal is centered below issuer info with vermillion frame
+ * Seal 単独 fragment (CLASSIC は vermilion frame 入れ子) — SPEC §7.2.5。
  */
-function renderIssuer(
+function renderSealFragment(issuerSnapshot: IssuerSnapshot): string {
+  if (!isValidImageDataUri(issuerSnapshot.sealImageBase64)) return '';
+  return `
+      <div class="classic-seal-container">
+        <div class="classic-seal-frame">
+          <img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="classic-seal-image" />
+        </div>
+      </div>
+    `;
+}
+
+/**
+ * Bank info 単独 fragment (table-row level、`<tr>...</tr>`) — SPEC §7.2.5。
+ *
+ * **legacy 合成専用**。**override 経路で grid cell に投入する場合は
+ * `renderBankBlockForCell()`** で `<table class="classic-info-table">` ラップ。
+ * (P4-C-3 ACCOUNTING と同 pattern: bare `<tr>` を `<div>` 内に置けない)
+ */
+function renderBankFragment(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  if (!hasBankInfo(sensitiveSnapshot)) return '';
+
+  const bankLines: string[] = [];
+  if (sensitiveSnapshot!.bankName) {
+    let bankLine = escapeHtml(sensitiveSnapshot!.bankName);
+    if (sensitiveSnapshot!.branchName) {
+      bankLine += ` ${escapeHtml(sensitiveSnapshot!.branchName)}`;
+    }
+    if (sensitiveSnapshot!.accountType) {
+      bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountType)}`;
+    }
+    if (sensitiveSnapshot!.accountNumber) {
+      bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountNumber)}`;
+    }
+    bankLines.push(bankLine);
+  }
+  if (sensitiveSnapshot!.accountHolderName) {
+    bankLines.push(escapeHtml(sensitiveSnapshot!.accountHolderName));
+  }
+
+  return `
+      <tr>
+        <td class="classic-info-label">振込先</td>
+        <td class="classic-info-value">${bankLines.join('<br>')}</td>
+      </tr>
+    `;
+}
+
+/**
+ * Notes 単独 fragment — SPEC §7.2.5。
+ * CLASSIC は notes が空でも wrapper を出す (FORMAL/ACCOUNTING と同じ、SIMPLE と異なる)。
+ */
+function renderNotesFragment(doc: DocumentWithTotals): string {
+  return `
+    <div class="classic-notes">
+      <div class="classic-notes-title">備考</div>
+      <div class="classic-notes-content">${doc.notes ? escapeHtml(doc.notes) : ''}</div>
+    </div>
+  `;
+}
+
+/**
+ * Build issuer info lines. CLASSIC の seal は classic-issuer 内に inline push
+ * (vermilion frame 入れ子)、includeSeal フラグで切替 (P4-C-3/P4-C-4 SIMPLE と同 pattern)。
+ *
+ * line order: companyName → postal → address1 → address2 → tel → [seal] →
+ *             registration → contact
+ */
+function buildIssuerInfoLines(
   doc: DocumentWithTotals,
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
-  sealSizePx: number
-): string {
+  includeSeal: boolean
+): string[] {
   const { issuerSnapshot } = doc;
   const labels = getDocumentLabels(doc.type);
   const lines: string[] = [];
 
-  // Company name
   if (issuerSnapshot.companyName) {
     lines.push(`<div class="classic-issuer-company">${escapeHtml(issuerSnapshot.companyName)}</div>`);
   }
 
-  // Parse address
   const parsedAddress = parseAddressWithPostalCode(issuerSnapshot.address);
   if (parsedAddress.postalCode) {
     lines.push(`<div class="classic-issuer-postal">${escapeHtml(parsedAddress.postalCode)}</div>`);
@@ -424,36 +506,38 @@ function renderIssuer(
     lines.push(`<div class="classic-issuer-address">${escapeHtml(parsedAddress.addressLine2)}</div>`);
   }
 
-  // TEL
   if (issuerSnapshot.phone) {
     lines.push(`<div class="classic-issuer-tel">TEL: ${escapeHtml(issuerSnapshot.phone)}</div>`);
   }
 
-  // Seal image (below issuer info, center-aligned with vermillion frame)
-  if (isValidImageDataUri(issuerSnapshot.sealImageBase64)) {
-    lines.push(`
-      <div class="classic-seal-container">
-        <div class="classic-seal-frame">
-          <img src="${issuerSnapshot.sealImageBase64}" alt="印影" class="classic-seal-image" />
-        </div>
-      </div>
-    `);
+  if (includeSeal) {
+    const sealHtml = renderSealFragment(issuerSnapshot);
+    if (sealHtml) {
+      lines.push(sealHtml);
+    }
   }
 
-  // Registration number (invoice only)
   if (labels.showRegistrationNumber && sensitiveSnapshot?.invoiceNumber) {
     lines.push(`<div class="classic-issuer-registration">登録番号: ${escapeHtml(sensitiveSnapshot.invoiceNumber)}</div>`);
   }
 
-  // Contact person
   if (issuerSnapshot.contactPerson) {
     lines.push(`<div class="classic-issuer-contact">担当: ${escapeHtml(issuerSnapshot.contactPerson)}</div>`);
   }
 
-  if (lines.length === 0) {
-    return '';
-  }
+  return lines;
+}
 
+/**
+ * Issuer info text (seal を含まない classic-issuer) — SPEC §7.2.5。
+ * override 経路で seal が moved/hidden の時 header 相当を seal なしで出力。
+ */
+function renderIssuerInfoText(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot, /*includeSeal=*/false);
+  if (lines.length === 0) return '';
   return `
     <div class="classic-issuer">
       ${lines.join('\n')}
@@ -462,17 +546,36 @@ function renderIssuer(
 }
 
 /**
- * Render info block table (subject, period, bank info)
- * Simple table format with full cell borders (grid style)
+ * Render issuer section (right-aligned, full width) — legacy composition.
+ * Seal is centered below issuer info with vermillion frame.
+ *
+ * sealSizePx は CSS 経由で適用されるため引数として保持しない (legacy/override
+ * 共通 primitive を呼ぶ薄ラッパーに統一)。
  */
-function renderInfoBlock(
+function renderIssuer(
   doc: DocumentWithTotals,
   sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const lines = buildIssuerInfoLines(doc, sensitiveSnapshot, /*includeSeal=*/true);
+  if (lines.length === 0) return '';
+  return `
+    <div class="classic-issuer">
+      ${lines.join('\n')}
+    </div>
+  `;
+}
+
+/**
+ * info-block table の rows 構築 — SPEC §7.2.5。
+ */
+function renderInfoBlockRows(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null,
+  includeBank: boolean
 ): string {
   const labels = getDocumentLabels(doc.type);
   const rows: string[] = [];
 
-  // Subject
   if (doc.subject) {
     rows.push(`
       <tr>
@@ -482,7 +585,6 @@ function renderInfoBlock(
     `);
   }
 
-  // Period (validUntil for estimate, dueDate for invoice)
   const periodValue = doc[labels.periodField];
   if (periodValue) {
     rows.push(`
@@ -493,43 +595,45 @@ function renderInfoBlock(
     `);
   }
 
-  // Bank info (invoice only)
-  if (labels.showBankInfo && hasBankInfo(sensitiveSnapshot)) {
-    const bankLines: string[] = [];
-    if (sensitiveSnapshot!.bankName) {
-      let bankLine = escapeHtml(sensitiveSnapshot!.bankName);
-      if (sensitiveSnapshot!.branchName) {
-        bankLine += ` ${escapeHtml(sensitiveSnapshot!.branchName)}`;
-      }
-      if (sensitiveSnapshot!.accountType) {
-        bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountType)}`;
-      }
-      if (sensitiveSnapshot!.accountNumber) {
-        bankLine += ` ${escapeHtml(sensitiveSnapshot!.accountNumber)}`;
-      }
-      bankLines.push(bankLine);
-    }
-    if (sensitiveSnapshot!.accountHolderName) {
-      bankLines.push(escapeHtml(sensitiveSnapshot!.accountHolderName));
-    }
-
-    rows.push(`
-      <tr>
-        <td class="classic-info-label">振込先</td>
-        <td class="classic-info-value">${bankLines.join('<br>')}</td>
-      </tr>
-    `);
+  if (includeBank && labels.showBankInfo) {
+    const bankRow = renderBankFragment(sensitiveSnapshot);
+    if (bankRow) rows.push(bankRow);
   }
 
-  if (rows.length === 0) {
-    return '';
-  }
+  return rows.join('');
+}
 
+/**
+ * Wrap rows with `<table class="classic-info-table">` — legacy / override 共通 wrapper。
+ */
+function renderInfoBlockFromRows(rowsHtml: string): string {
+  if (rowsHtml === '') return '';
   return `
     <table class="classic-info-table">
-      ${rows.join('')}
+      ${rowsHtml}
     </table>
   `;
+}
+
+/**
+ * Render info block table (subject, period, bank info) — legacy composition.
+ */
+function renderInfoBlock(
+  doc: DocumentWithTotals,
+  sensitiveSnapshot: SensitiveIssuerSnapshot | null
+): string {
+  const rowsHtml = renderInfoBlockRows(doc, sensitiveSnapshot, /*includeBank=*/true);
+  return renderInfoBlockFromRows(rowsHtml);
+}
+
+/**
+ * Bank fragment を grid cell に投入するためのラッピング helper。
+ * `<table class="classic-info-table">` で包み HTML 構造的妥当性を確保
+ * (P4-C-3 ACCOUNTING の同名 helper と同 pattern)。
+ */
+function renderBankBlockForCell(sensitiveSnapshot: SensitiveIssuerSnapshot | null): string {
+  const bankRow = renderBankFragment(sensitiveSnapshot);
+  return renderInfoBlockFromRows(bankRow);
 }
 
 /**
@@ -623,15 +727,13 @@ function renderTotalsSection(doc: DocumentWithTotals): string {
 }
 
 /**
- * Render notes section with thick border and Mincho bold title
+ * Render notes section with thick border and Mincho bold title — legacy composition.
+ *
+ * Delegates to renderNotesFragment so the box markup is shared with override
+ * branch. CLASSIC は notes 空でも wrapper を出す legacy 挙動を保持。
  */
 function renderNotesSection(doc: DocumentWithTotals): string {
-  return `
-    <div class="classic-notes">
-      <div class="classic-notes-title">備考</div>
-      <div class="classic-notes-content">${doc.notes ? escapeHtml(doc.notes) : ''}</div>
-    </div>
-  `;
+  return renderNotesFragment(doc);
 }
 
 // === Main Template Generator ===
@@ -652,9 +754,67 @@ export function generateClassicTemplate(
   sensitiveSnapshot: SensitiveIssuerSnapshot | null,
   options: TemplateOptions
 ): string {
-  const sealSizePx = getSealSizePx(options.sealSize, 'CLASSIC');
+  // SPEC §5.1 / §7.2 hybrid pattern (FORMAL / ACCOUNTING / SIMPLE と同 pattern):
+  //   default 一致 → legacy DOM そのまま
+  //   override   → block-by-block extraction + dual anchor grid (P4-C-4 CLASSIC)
+  const isDefault = isDefaultResolvedPlacement(options.blockPlacements, 'CLASSIC');
+
+  const sealSizePx = getSealSizePx(options.sealSize ?? DEFAULT_SEAL_SIZE, 'CLASSIC');
   const backgroundCss = getBackgroundCss(options.backgroundDesign, options.backgroundImageDataUrl);
   const backgroundHtml = getBackgroundHtml(options.backgroundDesign, options.backgroundImageDataUrl);
+  const labels = getDocumentLabels(doc.type);
+
+  let issuerHtml: string;
+  let infoBlockHtml: string;
+  let notesHtml: string;
+  let blockLayoutTopHtml = '';
+  let blockLayoutBottomHtml = '';
+  let overrideCss = '';
+
+  if (isDefault) {
+    issuerHtml = renderIssuer(doc, sensitiveSnapshot);
+    infoBlockHtml = renderInfoBlock(doc, sensitiveSnapshot);
+    notesHtml = renderNotesSection(doc);
+  } else {
+    const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.CLASSIC;
+    const perBlock = computePerBlockStatus(options.blockPlacements, templateDefault);
+
+    issuerHtml = perBlock.companyStamp.isDefault
+      ? renderIssuer(doc, sensitiveSnapshot)
+      : renderIssuerInfoText(doc, sensitiveSnapshot);
+    const rowsHtml = renderInfoBlockRows(
+      doc,
+      sensitiveSnapshot,
+      /*includeBank=*/perBlock.bankAccount.isDefault
+    );
+    infoBlockHtml = renderInfoBlockFromRows(rowsHtml);
+    notesHtml = perBlock.remarks.isDefault ? renderNotesSection(doc) : '';
+
+    // Grid placement: moved blocks → cells. bank は table wrapper 必須。
+    const renderedBlocks: RenderedBlocks = {
+      bankAccount: !perBlock.bankAccount.isDefault && labels.showBankInfo
+        ? renderBankBlockForCell(sensitiveSnapshot)
+        : '',
+      companyStamp: !perBlock.companyStamp.isDefault
+        ? renderSealFragment(doc.issuerSnapshot)
+        : '',
+      remarks: !perBlock.remarks.isDefault
+        ? renderNotesFragment(doc)
+        : '',
+    };
+
+    const cells = placeBlocks(options.blockPlacements, renderedBlocks);
+    const topRegion = renderBlockLayoutTop(cells);
+    const bottomRegion = renderBlockLayoutBottom(cells);
+
+    blockLayoutTopHtml = topRegion ? `\n    ${topRegion}` : '';
+    blockLayoutBottomHtml = bottomRegion ? `\n    ${bottomRegion}` : '';
+
+    if (topRegion || bottomRegion) {
+      overrideCss = `
+    ${BLOCK_LAYOUT_GRID_CSS}`;
+    }
+  }
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -663,7 +823,7 @@ export function generateClassicTemplate(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     ${getClassicStyles(sealSizePx)}
-    ${backgroundCss}
+    ${backgroundCss}${overrideCss}
   </style>
 </head>
 <body>
@@ -682,19 +842,19 @@ export function generateClassicTemplate(
     ${renderGreeting(doc)}
 
     <!-- Issuer info (right-aligned, full width) with seal -->
-    ${renderIssuer(doc, sensitiveSnapshot, sealSizePx)}
+    ${issuerHtml}${blockLayoutTopHtml}
 
     <!-- Info block (subject, period, bank info) -->
-    ${renderInfoBlock(doc, sensitiveSnapshot)}
+    ${infoBlockHtml}
 
     <!-- Line items table (full grid) -->
     ${renderLineItemsTable(doc)}
 
     <!-- Totals section -->
-    ${renderTotalsSection(doc)}
+    ${renderTotalsSection(doc)}${blockLayoutBottomHtml}
 
     <!-- Notes section -->
-    ${renderNotesSection(doc)}
+    ${notesHtml}
   </div>
 </body>
 </html>`;
