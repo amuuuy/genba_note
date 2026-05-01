@@ -41,6 +41,7 @@ import { enrichDocumentWithTotals } from '@/domain/lineItem/calculationService';
 import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { changeDocumentStatus, sanitizeDocumentType } from '@/domain/document';
+import { getDocument } from '@/domain/document/documentService';
 import { createUnitPrice, lineItemToUnitPriceInput } from '@/domain/unitPrice';
 import type { LineItemInput } from '@/domain/lineItem/lineItemService';
 import { getSettings } from '@/storage/asyncStorageService';
@@ -196,7 +197,7 @@ export default function DocumentEditScreen() {
   }, [save, isNewDocument]);
 
   // Handle preview navigation (without saving)
-  const handlePreview = useCallback(() => {
+  const handlePreview = useCallback(async () => {
     setShowActionSheet(false);
 
     // Build document data for preview.
@@ -208,6 +209,18 @@ export default function DocumentEditScreen() {
     const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
     const carriedForwardAmount =
       carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
+
+    // v1.0.3: 保存済み書類は preview の inline 配置変更 UI で blockPlacements が
+    // 即時 AsyncStorage に保存される。preview から戻った後の edit state は本値を
+    // 反映していないため、再 preview 直前に最新値を取りに行く (stale 値再注入の
+    // 防止、codex arch review blocking #2 反映)。fetch 失敗時は state 値を fallback。
+    let blockPlacementsForPreview = state.blockPlacements;
+    if (state.documentId) {
+      const fresh = await getDocument(state.documentId);
+      if (fresh.success && fresh.data) {
+        blockPlacementsForPreview = fresh.data.blockPlacements;
+      }
+    }
 
     const previewDocument: Partial<Document> = {
       id: state.documentId || '',
@@ -239,7 +252,8 @@ export default function DocumentEditScreen() {
       // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
       // preview に伝播させる。これがないと保存済み override が preview で
       // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
-      blockPlacements: state.blockPlacements,
+      // v1.0.3: 保存済み書類では fresh fetch 経由で最新値を採用 (上記参照)。
+      blockPlacements: blockPlacementsForPreview,
     };
 
     // Navigate to preview with the document data

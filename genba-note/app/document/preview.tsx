@@ -122,6 +122,13 @@ export default function DocumentPreviewScreen() {
     return generateFilenameTitle(resolvedDocumentWithTotals.documentNo, resolvedDocumentWithTotals.type);
   }, [resolvedDocumentWithTotals]);
 
+  // v1.0.3: 永続 ID を持つ書類かを判定。`isPreviewMode = !!previewData` は
+  // 編集画面からの全 navigation で true になるため (previewData 経由のみ)、
+  // 「保存済み書類か」の判定としては使えない。永続 ID の有無で判定する。
+  // - true:  保存済み書類 (inline 配置変更 UI、PDF 共有、PDF エラー表示が利用可)
+  // - false: 未保存書類 or 不正な空 ID (UI 全般 disable、編集画面で先に保存が必要)
+  const hasPersistentDocumentId = !!resolvedDocumentWithTotals?.id;
+
   // === Handlers ===
 
   const handleToggleOrientation = useCallback(() => {
@@ -284,9 +291,9 @@ export default function DocumentPreviewScreen() {
         </Pressable>
 
         {/* v1.0.3 inline 配置変更 UI (BlockPlacementModal の置き換え)。
-            未保存 preview (isPreviewMode) では documentId 無いため非表示
-            (SPEC §6.7.1: 新規未保存書類では使えない)。 */}
-        {!isPreviewMode && resolvedDocumentWithTotals && (
+            永続 ID を持つ保存済み書類のみ表示 (SPEC §6.7.1: 新規未保存書類では
+            updateDocument が呼べないため使えない)。 */}
+        {hasPersistentDocumentId && resolvedDocumentWithTotals && (
           <BlockPlacementInlineControls
             documentId={resolvedDocumentWithTotals.id}
             currentPlacements={
@@ -300,8 +307,8 @@ export default function DocumentPreviewScreen() {
           />
         )}
 
-        {/* PDF Error Display - only show when not in preview mode */}
-        {!isPreviewMode && pdfError && (
+        {/* PDF Error Display - 保存済み書類のみ (PDF 共有経路と整合) */}
+        {hasPersistentDocumentId && pdfError && (
           <View style={styles.pdfErrorContainer}>
             <Text style={styles.pdfErrorText}>{pdfError}</Text>
             <View style={styles.pdfErrorButtons}>
@@ -315,8 +322,8 @@ export default function DocumentPreviewScreen() {
           </View>
         )}
 
-        {/* PDF Share button - only show when document is saved */}
-        {!isPreviewMode && (
+        {/* PDF Share button - 保存済み書類のみ表示 (永続 ID 必須) */}
+        {hasPersistentDocumentId && (
           <Pressable
             style={[styles.shareButton, isGenerating && styles.shareButtonDisabled]}
             onPress={handleShareButtonPress}
