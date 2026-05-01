@@ -106,19 +106,19 @@ export default function DocumentEditScreen() {
   const isPublishingRef = useRef(isPublishing);
   isPublishingRef.current = isPublishing;
 
-  // v1.0.3: handlePreview の async fetch 中の unmount guard (codex iter2 blocking 反映)。
-  // getDocument await 中に画面離脱 / unmount すると、古い callback が後から
-  // router.push してしまう race を防ぐ。preview 起動中は同期ロック (isPreparingPreviewRef)
-  // で多重起動も併せて弾く。
-  const isMountedRef = useRef(true);
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  // v1.0.3: handlePreview の async fetch 中の race guard (codex iter3 blocking 反映)。
+  // - `isScreenFocusedRef`: useFocusEffect ベースで focus 状態を追跡。React Navigation
+  //   stack では blur 中も mounted のままなので、unmount 検知だけでは blur 中の race
+  //   を捕捉できない。focus を持っている時のみ navigation を許可する。
+  // - `isPreparingPreviewRef`: 同期ロック (rapid tap での多重起動防止)
+  // - `isPreparingPreview` (state): UI 全般の disable 伝播 (header back / action sheet /
+  //   PDF / SaveActionSheet 内 preview button)
+  const isScreenFocusedRef = useRef(false);
   const isPreparingPreviewRef = useRef(false);
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+  // Ref to latest isPreparingPreview for back handlers (BackHandler 等で同期的に参照)
+  const isPreparingPreviewStateRef = useRef(isPreparingPreview);
+  isPreparingPreviewStateRef.current = isPreparingPreview;
 
   // Reset initialization flag when document ID changes
   useEffect(() => {
@@ -169,6 +169,10 @@ export default function DocumentEditScreen() {
     if (isPublishingRef.current) {
       return true; // Prevent back during publish flow
     }
+    // v1.0.3: preview 起動 fetch 中の back gesture を block (codex iter3 blocking 反映)
+    if (isPreparingPreviewStateRef.current) {
+      return true;
+    }
     if (isDirtyRef.current) {
       Alert.alert(
         '未保存の変更があります',
@@ -183,15 +187,21 @@ export default function DocumentEditScreen() {
     return false; // Allow default back
   }, []);
 
-  // Handle Android hardware back button
+  // Handle Android hardware back button + screen focus tracking (v1.0.3)。
+  // useFocusEffect の cleanup は blur 時に走る → isScreenFocusedRef を false に倒すことで
+  // handlePreview の await 後 navigation を blur 中に abort 可能 (codex iter3 blocking 反映)。
   useFocusEffect(
     useCallback(() => {
+      isScreenFocusedRef.current = true;
       const onBackPress = () => {
         return showUnsavedChangesAlert();
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-      return () => subscription.remove();
+      return () => {
+        isScreenFocusedRef.current = false;
+        subscription.remove();
+      };
     }, [showUnsavedChangesAlert])
   );
 
@@ -240,9 +250,10 @@ export default function DocumentEditScreen() {
         state.blockPlacements,
         { getDocument }
       );
-      // codex iter2 blocking 反映: await 中に screen unmount したら古い callback
-      // が router.push してしまう race を防ぐ。stale な navigation を完全 abort。
-      if (!isMountedRef.current) return;
+      // codex iter3 blocking 反映: await 中に画面 blur (別画面遷移開始 / unmount) したら
+      // 古い callback が router.push してしまう race を防ぐ。React Navigation stack では
+      // blur 中も mounted のままなので focus 状態 ref で判定する。
+      if (!isScreenFocusedRef.current) return;
 
       const previewDocument: Partial<Document> = {
         id: state.documentId || '',
@@ -278,8 +289,8 @@ export default function DocumentEditScreen() {
         blockPlacements: blockPlacementsForPreview,
       };
 
-      // codex iter2 blocking 反映: build 中の同期処理でも mount 状態を最終確認。
-      if (!isMountedRef.current) return;
+      // codex iter3 blocking 反映: navigate 直前にも focus 状態を最終確認。
+      if (!isScreenFocusedRef.current) return;
 
       // Navigate to preview with the document data
       router.push({
@@ -288,7 +299,8 @@ export default function DocumentEditScreen() {
       });
     } finally {
       isPreparingPreviewRef.current = false;
-      if (isMountedRef.current) {
+      // unmount 後の setState は React 警告のため、focus 状態でガード
+      if (isScreenFocusedRef.current) {
         setIsPreparingPreview(false);
       }
     }
@@ -592,32 +604,39 @@ export default function DocumentEditScreen() {
       <Stack.Screen
         options={{
           title: screenTitle,
-          gestureEnabled: !isPublishing,
-          headerLeft: () => (
-            <Pressable
-              onPress={handleBackPress}
-              hitSlop={8}
-              style={styles.headerButton}
-              disabled={isPublishing}
-              accessibilityLabel="戻る"
-              accessibilityRole="button"
-            >
-              <Ionicons name="chevron-back" size={28} color={isPublishing ? '#C7C7CC' : '#007AFF'} />
-            </Pressable>
-          ),
+          // v1.0.3 codex iter3 blocking 反映: preview 起動 fetch 中は iOS スワイプも無効化。
+          gestureEnabled: !isPublishing && !isPreparingPreview,
+          headerLeft: () => {
+            // v1.0.3 codex iter3 blocking 反映: preview fetch 中は back も disable。
+            const backDisabled = isPublishing || isPreparingPreview;
+            return (
+              <Pressable
+                onPress={handleBackPress}
+                hitSlop={8}
+                style={styles.headerButton}
+                disabled={backDisabled}
+                accessibilityLabel="戻る"
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-back" size={28} color={backDisabled ? '#C7C7CC' : '#007AFF'} />
+              </Pressable>
+            );
+          },
           headerRight: () => {
             // v1.0.3: 「見た目」header button 廃止 (preview 画面に inline 統合)。
+            // codex iter3 blocking 反映: preview 起動 fetch 中は他フローを開始させない。
+            const headerDisabled = state.isSaving || isPublishing || isReadOnlyMode || isPreparingPreview;
             return (
               <View style={styles.headerButtons}>
                 <Pressable
                   onPress={handleActionSheetOpen}
-                  disabled={state.isSaving || isPublishing || isReadOnlyMode}
-                  style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
-                  accessibilityLabel={isReadOnlyMode ? '読み取り専用モード' : state.isSaving || isPublishing ? '処理中' : 'アクション'}
+                  disabled={headerDisabled}
+                  style={[styles.headerButton, headerDisabled && styles.headerButtonDisabled]}
+                  accessibilityLabel={isReadOnlyMode ? '読み取り専用モード' : state.isSaving || isPublishing || isPreparingPreview ? '処理中' : 'アクション'}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode, busy: state.isSaving || isPublishing }}
+                  accessibilityState={{ disabled: headerDisabled, busy: state.isSaving || isPublishing || isPreparingPreview }}
                 >
-                  {state.isSaving || isPublishing ? (
+                  {state.isSaving || isPublishing || isPreparingPreview ? (
                     <ActivityIndicator size="small" color="#007AFF" />
                   ) : (
                     <View style={styles.actionButtonContent}>
@@ -633,13 +652,13 @@ export default function DocumentEditScreen() {
                 </Pressable>
                 <Pressable
                   onPress={handlePublishPdf}
-                  disabled={state.isSaving || isPublishing || isReadOnlyMode}
-                  style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
+                  disabled={headerDisabled}
+                  style={[styles.headerButton, headerDisabled && styles.headerButtonDisabled]}
                   accessibilityLabel="PDF発行"
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode }}
+                  accessibilityState={{ disabled: headerDisabled }}
                 >
-                  <Text style={[styles.saveButtonText, (state.isSaving || isPublishing || isReadOnlyMode) && styles.saveButtonTextDisabled]}>
+                  <Text style={[styles.saveButtonText, headerDisabled && styles.saveButtonTextDisabled]}>
                     PDF
                   </Text>
                 </Pressable>
