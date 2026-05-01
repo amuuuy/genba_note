@@ -52,8 +52,6 @@ export interface BlockPlacementModalProps {
   visible: boolean;
   documentId: string;
   currentPlacements: BlockPlacements | null;
-  /** 現在のテンプレ ID (詳細設定の "現在位置" ハイライトを default 計算するため) */
-  resolvedTemplateId: DocumentTemplateId;
   /** Modal を閉じる (× タップ or 背景タップ) */
   onClose: () => void;
   /** updateDocument 成功後に呼ばれる。parent で reload して state 反映する想定 */
@@ -116,7 +114,6 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
   visible,
   documentId,
   currentPlacements,
-  resolvedTemplateId,
   onClose,
   onUpdated,
   testID,
@@ -137,16 +134,25 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
     }
   }, [visible]);
 
-  // Real-time preview using shared hook (SPEC §6.3)
-  const { webViewHtml, isLoading: isPreviewLoading } = useDocumentPreviewHtml({
+  // Real-time preview using shared hook (SPEC §6.3).
+  // resolvedTemplateId は hook が settings から自動解決するため Props で受け取らない
+  // (DRY: 詳細設定の "現在位置" ハイライト計算にも本値を再利用)。
+  const {
+    webViewHtml,
+    isLoading: isPreviewLoading,
+    resolvedTemplateId,
+  } = useDocumentPreviewHtml({
     source: { kind: 'documentId', documentId },
     blockPlacementsOverride: currentPlacements,
   });
 
-  // Display-resolved placements (default 穴埋め済) for "現在位置" highlight
+  // Display-resolved placements (default 穴埋め済) for "現在位置" highlight。
+  // resolvedTemplateId は hook の load 完了まで null なので、その間は最小限の
+  // fallback (FORMAL_STANDARD) を使う。実際の詳細設定タップは hook load 後に
+  // ユーザが行うため UX 上の影響なし。
   const displayPlacements = resolvePlacementsForDisplay(
     currentPlacements,
-    resolvedTemplateId
+    resolvedTemplateId ?? 'FORMAL_STANDARD'
   );
 
   /**
