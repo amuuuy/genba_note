@@ -189,6 +189,29 @@ describe('normalizeForParity helper', () => {
     const twice = normalizeForParity(once);
     expect(twice).toEqual(once);
   });
+
+  // SPEC §5.4 「inter-tag whitespace は触らない」境界 test
+  // (Codex P6-A advisory 反映): normalize は trivial な「空行・行末 whitespace」
+  // のみ吸収し、rendering-significant な inline 間 whitespace は保護する。
+  it('preserves meaningful inter-tag whitespace (rendering-significant)', () => {
+    // inline 文脈の `</span> <span>` の間にある半角スペースは visual に
+    // 半角空白として描画されるため、normalize で消してはならない。
+    const html =
+      '<html><head></head><body>\n\n' +
+      '<p><span>a</span> <span>b</span></p>\n' +
+      '   \n' +
+      '<p><span>x</span> <span>y</span></p>\n' +
+      '</body></html>';
+    const result = normalizeForParity(html);
+    // 1. inline 半角スペース (<span>a</span> SPACE <span>b</span>) は保持
+    expect(result).toContain('<span>a</span> <span>b</span>');
+    // 2. non-breaking space ( ) も保持
+    expect(result).toContain('<span>x</span> <span>y</span>');
+    // 3. 一方で「空行」(改行のみの行) は連結される (trivial 形成のみ削除)
+    expect(result).not.toMatch(/\n\s*\n/);
+    // 4. 行末 whitespace は削除される (trivial)
+    expect(result).not.toMatch(/[ \t]+$/m);
+  });
 });
 
 // === LANDSCAPE orientation parity (任意 spot check) ===
