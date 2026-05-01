@@ -13,6 +13,7 @@
 import {
   resolvePlacementsForDisplay,
   resolveEffectiveBlockPlacements,
+  applyEffectiveBlockPlacementsToDocument,
 } from '@/components/document/edit/blockPlacementModalHelpers';
 import {
   documentEditReducer,
@@ -103,6 +104,56 @@ describe('resolveEffectiveBlockPlacements (P5-D)', () => {
     const override: BlockPlacements = { companyStamp: 'hidden' };
     const result = resolveEffectiveBlockPlacements(override, null);
     expect(result).toEqual(override);
+  });
+});
+
+// === applyEffectiveBlockPlacementsToDocument (P5-D iter2 share helper) ===
+
+describe('applyEffectiveBlockPlacementsToDocument (P5-D)', () => {
+  // preview.tsx の generateAndSharePdf 呼出経路を pure helper として抽出した
+  // 配線担保用 helper。これが pass することで preview/PDF parity が保たれる。
+  const baseDoc = {
+    id: 'doc-1',
+    documentNo: 'INV-001',
+    blockPlacements: { bankAccount: 'top-left' as const },
+    // 他フィールドは shallow copy で保持されることを担保
+    clientName: 'テスト顧客',
+    notes: 'メモ',
+  };
+
+  it('override === undefined → document を shallow copy、blockPlacements そのまま', () => {
+    const result = applyEffectiveBlockPlacementsToDocument(baseDoc, undefined);
+    expect(result.blockPlacements).toEqual(baseDoc.blockPlacements);
+    expect(result.clientName).toBe(baseDoc.clientName);
+    expect(result.notes).toBe(baseDoc.notes);
+    // shallow copy であること (mutation 影響回避)
+    expect(result).not.toBe(baseDoc);
+  });
+
+  it('override === BlockPlacements → effective 値で上書き、他フィールド保持 (saved preview + override → PDF 反映)', () => {
+    // saved preview で modal explicit override 後の PDF 共有シナリオ:
+    // WebView も PDF も同じ override 配置になる
+    const override: BlockPlacements = { remarks: 'bottom-right' };
+    const result = applyEffectiveBlockPlacementsToDocument(baseDoc, override);
+    expect(result.blockPlacements).toEqual(override);
+    expect(result.clientName).toBe(baseDoc.clientName);
+    expect(result.notes).toBe(baseDoc.notes);
+  });
+
+  it('override === null → blockPlacements を null に reset、他フィールド保持 (saved preview + 「最初の配置に戻す」→ PDF 反映)', () => {
+    // saved preview で modal の「最初の配置に戻す」後の PDF 共有シナリオ:
+    // WebView も PDF も template default に戻る (両 path で resolveBlockPlacements が
+    // null を受けて template default に倒す)
+    const result = applyEffectiveBlockPlacementsToDocument(baseDoc, null);
+    expect(result.blockPlacements).toBeNull();
+    expect(result.clientName).toBe(baseDoc.clientName);
+    expect(result.notes).toBe(baseDoc.notes);
+  });
+
+  it('does not mutate input document', () => {
+    const docBefore = { ...baseDoc };
+    applyEffectiveBlockPlacementsToDocument(baseDoc, { bankAccount: 'hidden' });
+    expect(baseDoc).toEqual(docBefore);
   });
 });
 
