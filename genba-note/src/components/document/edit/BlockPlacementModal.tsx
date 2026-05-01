@@ -18,7 +18,7 @@
  * - 各操作で updateDocument → useDocumentEdit refresh → currentPlacements 更新 → 即時反映
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -124,6 +124,19 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
   const [detailExpanded, setDetailExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // useRef-based 同期ロック (Codex P5-A iter1 advisory 反映): React state は
+  // 反映に 1 frame 遅延があるため rapid tap で並行保存に入る余地がある。ref で
+  // 同期的に弾く。state は UI disable 表示用に残す。
+  const savingLockRef = useRef(false);
+
+  // SPEC §6.2.3「詳細設定はデフォルト閉」: visible を false にした際に reset
+  // (Codex P5-A iter1 blocking 反映)。これで再オープン時に必ず閉じている。
+  useEffect(() => {
+    if (!visible) {
+      setDetailExpanded(false);
+    }
+  }, [visible]);
+
   // Real-time preview using shared hook (SPEC §6.3)
   const { webViewHtml, isLoading: isPreviewLoading } = useDocumentPreviewHtml({
     source: { kind: 'documentId', documentId },
@@ -138,11 +151,20 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
 
   /**
    * Apply block placement update via updateDocument (SPEC §6.5 即時保存).
-   * isSaving guard で連打防止。失敗時はアラート表示 + accessibility announce。
+   *
+   * 連打防止 (Codex P5-A iter1 advisory 反映):
+   *   - useRef 同期ロック (savingLockRef) で並行保存を弾く
+   *   - useState (isSaving) は UI disable 表示用
+   *
+   * Accessibility (Codex P5-A iter1 blocking 反映):
+   *   - 成功時: announceForAccessibility で変更内容を読み上げ
+   *   - 失敗時: Alert.alert + announceForAccessibility 両方 (VoiceOver/TalkBack
+   *     利用者が即時失敗を認識できるように)
    */
   const applyPlacements = useCallback(
     async (placements: BlockPlacements | null, announceMessage: string) => {
-      if (isSaving) return;
+      if (savingLockRef.current) return;
+      savingLockRef.current = true;
       setIsSaving(true);
       try {
         const result = await updateDocument(documentId, {
@@ -157,11 +179,15 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
         const message =
           err instanceof Error ? err.message : '保存に失敗しました';
         Alert.alert('配置の更新に失敗しました', message);
+        AccessibilityInfo.announceForAccessibility(
+          `配置の更新に失敗しました: ${message}`
+        );
       } finally {
+        savingLockRef.current = false;
         setIsSaving(false);
       }
     },
-    [documentId, isSaving, onUpdated]
+    [documentId, onUpdated]
   );
 
   const handlePresetSelect = useCallback(
@@ -282,6 +308,7 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
                   ? '詳細設定を閉じる'
                   : '詳細設定を開く: 位置を細かく調整'
               }
+              accessibilityState={{ expanded: detailExpanded }}
               testID={testID ? `${testID}-detail-toggle` : undefined}
             >
               <Text style={styles.detailToggleLabel}>
