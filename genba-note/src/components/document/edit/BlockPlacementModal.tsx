@@ -36,15 +36,12 @@ import {
   BLOCK_PLACEMENT_PRESETS,
   type BlockPlacementPreset,
 } from '@/pdf/blockPlacementPresets';
-import {
-  TEMPLATE_DEFAULT_BLOCK_PLACEMENTS,
-} from '@/pdf/blockPlacementDefaults';
+import { resolvePlacementsForDisplay } from './blockPlacementModalHelpers';
 import type {
   BlockKind,
   BlockPlacements,
   BlockPosition,
 } from '@/types/blockPlacement';
-import type { DocumentTemplateId } from '@/types/settings';
 
 // === Props ===
 
@@ -89,24 +86,6 @@ const POSITION_LABEL: Record<BlockPosition, string> = {
 };
 
 // === Helpers ===
-
-/**
- * Resolve current placements with template default fallback for UI display.
- * `currentPlacements` が null/partial の場合、template default で穴埋めして
- * 詳細設定の「現在位置ハイライト」が一意に決まるようにする。
- */
-function resolvePlacementsForDisplay(
-  current: BlockPlacements | null,
-  templateId: DocumentTemplateId
-): Required<BlockPlacements> {
-  const templateDefault = TEMPLATE_DEFAULT_BLOCK_PLACEMENTS[templateId];
-  const override = current ?? {};
-  return {
-    bankAccount: override.bankAccount ?? templateDefault.bankAccount,
-    companyStamp: override.companyStamp ?? templateDefault.companyStamp,
-    remarks: override.remarks ?? templateDefault.remarks,
-  };
-}
 
 // === Component ===
 

@@ -146,7 +146,12 @@ const initialState: DocumentEditState = {
 
 // === Reducer ===
 
-function documentEditReducer(
+/**
+ * Reducer for document edit form state.
+ * Exported for unit testing of action semantics (UPDATE_BLOCK_PLACEMENTS など)。
+ * Production code should use the `useDocumentEdit` hook instead.
+ */
+export function documentEditReducer(
   state: DocumentEditState,
   action: DocumentEditAction
 ): DocumentEditState {
