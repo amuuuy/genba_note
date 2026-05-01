@@ -1,9 +1,14 @@
 /**
- * BlockPlacementModal pure helpers (unit-testable).
+ * Block placement pure helpers (unit-testable).
  *
- * BlockPlacementModal.tsx は React component (JSX) を含むため node 環境の jest では
- * 直接 import できない。pure logic はここに集約してテスト容易性を確保する
- * (TemplatePickerModal などと同じスタンス、Codex P5-C testing advisory 反映)。
+ * v1.0.2 では BlockPlacementModal の pure logic 抽出として作られた経緯があり、
+ * ファイル名と path には Modal の名残が残る。v1.0.3 では Modal 廃止後、
+ * BlockPlacementInlineControls (preview 画面 inline UI) と preview.tsx の
+ * share workflow が同じ helper を共有する。
+ *
+ * React component (JSX) は node 環境の jest で直接 import できないため、pure
+ * logic はここに集約してテスト容易性を確保する (TemplatePickerModal などと
+ * 同じスタンス)。
  */
 
 import type {

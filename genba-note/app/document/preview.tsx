@@ -9,8 +9,9 @@
  *  - 共有実行 state (filename modal、generateAndSharePdf、pdfError)
  *  - orientation toggle state
  *
- * 書類読み込み・依存解決・HTML 生成・WebView 加工は hook 内 (P5 の
- * BlockPlacementModal でも同じ hook を再利用する)。
+ * 書類読み込み・依存解決・HTML 生成・WebView 加工は hook 内。
+ * v1.0.3: 配置変更 UI を BlockPlacementInlineControls として buttonContainer
+ * に inline 統合 (旧 BlockPlacementModal は廃止)。
  */
 
 import { useState, useCallback, useMemo } from 'react';

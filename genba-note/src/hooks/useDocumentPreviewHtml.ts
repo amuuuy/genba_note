@@ -3,9 +3,9 @@
  *
  * SPEC: SPEC_V1_0_2.md §6.3 (hybrid hook 設計、Q1=C 反映)
  *
- * preview.tsx と P5 の BlockPlacementModal で共用される。両者で webViewHtml
- * を取って WebView の source prop に渡すだけで、HTML 生成・依存解決・WebView
- * 加工 (CSP/landscape) は本 hook が一手に引き受ける。
+ * preview.tsx (および preview.tsx 内 inline UI が同じ hook 経路を使う) で
+ * 利用される。webViewHtml を取って WebView の source prop に渡すだけで、
+ * HTML 生成・依存解決・WebView 加工 (CSP/landscape) は本 hook が一手に引き受ける。
  *
  * 設計の要点 (codex P3 iter1 fix 反映):
  * - **依存読込 (async I/O) と HTML 生成 (sync) を 2 段に分離**:
