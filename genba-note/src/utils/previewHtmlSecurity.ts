@@ -58,3 +58,42 @@ export function injectCsp(html: string): CspInjectionResult {
   }
   return { html, success: false };
 }
+
+/**
+ * Normalize HTML for preview/print parity comparison (SPEC §8.5).
+ *
+ * preview と print の HTML は base template が同じだが、display/security 用の
+ * inject パターンが異なる:
+ *   - preview のみ: CSP meta タグ (script-src 'none')
+ *   - preview のみ or print: viewport meta タグ (width が異なる)
+ *   - print のみ: single-page enforcement script (<script>...</script>)
+ *
+ * 両側で共通に inject される項目 (single-page CSS、landscape CSS) は内容も
+ * 位置も同じなので、normalize 不要 (両 HTML 内に同じ markup が入る → diff 0)。
+ *
+ * 本 normalizer は「片側だけに入る inject」を除去することで、template 本体
+ * (mode='pdf' で生成された base HTML) の parity を直接比較可能にする。
+ *
+ * Codex SPEC §8.5 で `print-color-adjust` プロパティはテンプレ本体 CSS なので
+ * 比較対象に残す (normalize しない)。
+ *
+ * @param html 比較対象の HTML 文字列 (preview 経路 or print 経路の出力)
+ * @returns CSP / viewport / single-page script を除去した文字列 (両端 trim)
+ */
+export function normalizeForParity(html: string): string {
+  return (
+    html
+      // 1. CSP meta tag (preview only) — 前後 whitespace ごと削除
+      .replace(/\s*<meta\s+http-equiv="Content-Security-Policy"[^>]*>\s*/gi, '\n')
+      // 2. viewport meta tag (preview width=800、print width=device-width 等で異なる)
+      .replace(/\s*<meta\s+name="viewport"[^>]*>\s*/gi, '\n')
+      // 3. single-page enforcement inline script (print only、内側 `}` のネスト対応で非貪欲)
+      .replace(/\s*<script>\s*\(function\(\)\s*\{[\s\S]*?\}\)\(\);\s*<\/script>\s*/g, '\n')
+      // 4. SPEC §8.5: 空行・インデント差分は trivial として吸収
+      //    inject 削除後に残る連続改行・行末 whitespace を normalize
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\n{2,}/g, '\n')
+      // 5. trim 両端 (caller の保存形式の揺れ吸収)
+      .trim()
+  );
+}
