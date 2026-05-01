@@ -147,13 +147,15 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
   });
 
   // Display-resolved placements (default 穴埋め済) for "現在位置" highlight。
-  // resolvedTemplateId は hook の load 完了まで null なので、その間は最小限の
-  // fallback (FORMAL_STANDARD) を使う。実際の詳細設定タップは hook load 後に
-  // ユーザが行うため UX 上の影響なし。
-  const displayPlacements = resolvePlacementsForDisplay(
-    currentPlacements,
-    resolvedTemplateId ?? 'FORMAL_STANDARD'
-  );
+  // resolvedTemplateId が hook の load 完了前 (null) は、誤ハイライトを避けるため
+  // displayPlacements 自体を null にして「現在位置不明」状態として詳細設定を扱う
+  // (Codex P5-B iter1 advisory 反映: MODERN/CONSTRUCTION で default 'bottom-center'
+  // が一時的に 'top-center' (FORMAL fallback) と誤表示される問題を防ぐ)。
+  const displayPlacements: Required<BlockPlacements> | null = resolvedTemplateId
+    ? resolvePlacementsForDisplay(currentPlacements, resolvedTemplateId)
+    : null;
+  // hook load 完了前は詳細設定の cell タップを disable して誤更新を防ぐ
+  const detailDisabled = isSaving || displayPlacements === null;
 
   /**
    * Apply block placement update via updateDocument (SPEC §6.5 即時保存).
@@ -327,77 +329,92 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
 
             {detailExpanded && (
               <View style={styles.detailSection}>
-                {BLOCK_KINDS.map((kind) => (
-                  <View key={kind} style={styles.blockSection}>
-                    <Text style={styles.blockTitle}>{BLOCK_LABELS[kind]}</Text>
-                    {/* 6-cell grid: 2 rows × 3 cols */}
-                    <View style={styles.cellGrid}>
-                      {POSITION_GRID.map((row, rowIdx) => (
-                        <View key={rowIdx} style={styles.cellRow}>
-                          {row.map((position) => {
-                            const isSelected =
-                              displayPlacements[kind] === position;
-                            return (
-                              <Pressable
-                                key={position}
-                                style={[
-                                  styles.cell,
-                                  isSelected && styles.cellSelected,
-                                  isSaving && styles.cellDisabled,
-                                ]}
-                                onPress={() =>
-                                  handlePositionSelect(kind, position)
-                                }
-                                disabled={isSaving}
-                                accessibilityRole="button"
-                                accessibilityLabel={`${BLOCK_LABELS[kind]}を${POSITION_LABEL[position]}に配置`}
-                                accessibilityState={{ selected: isSelected }}
-                                testID={
-                                  testID
-                                    ? `${testID}-cell-${kind}-${position}`
-                                    : undefined
-                                }
-                              >
-                                {isSelected && (
-                                  <View style={styles.cellDot} />
-                                )}
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      ))}
-                    </View>
-                    {/* Hidden chip (off-grid) */}
-                    <Pressable
-                      style={[
-                        styles.hiddenChip,
-                        displayPlacements[kind] === 'hidden' &&
-                          styles.hiddenChipSelected,
-                        isSaving && styles.cellDisabled,
-                      ]}
-                      onPress={() => handlePositionSelect(kind, 'hidden')}
-                      disabled={isSaving}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${BLOCK_LABELS[kind]}を非表示にする`}
-                      accessibilityState={{
-                        selected: displayPlacements[kind] === 'hidden',
-                      }}
-                      testID={
-                        testID ? `${testID}-cell-${kind}-hidden` : undefined
-                      }
-                    >
-                      <Text
+                {displayPlacements === null && (
+                  // resolvedTemplateId 未解決時のヒント (Codex P5-B iter1 advisory 反映)
+                  <Text
+                    style={styles.detailLoadingText}
+                    testID={
+                      testID ? `${testID}-detail-loading` : undefined
+                    }
+                  >
+                    現在位置を読み込み中…
+                  </Text>
+                )}
+                {BLOCK_KINDS.map((kind) => {
+                  const currentPosition = displayPlacements?.[kind];
+                  return (
+                    <View key={kind} style={styles.blockSection}>
+                      <Text style={styles.blockTitle}>{BLOCK_LABELS[kind]}</Text>
+                      {/* 6-cell grid: 2 rows × 3 cols */}
+                      <View style={styles.cellGrid}>
+                        {POSITION_GRID.map((row, rowIdx) => (
+                          <View key={rowIdx} style={styles.cellRow}>
+                            {row.map((position) => {
+                              // displayPlacements が null の間は誤ハイライト防止のため
+                              // 一切選択状態を出さない
+                              const isSelected = currentPosition === position;
+                              return (
+                                <Pressable
+                                  key={position}
+                                  style={[
+                                    styles.cell,
+                                    isSelected && styles.cellSelected,
+                                    detailDisabled && styles.cellDisabled,
+                                  ]}
+                                  onPress={() =>
+                                    handlePositionSelect(kind, position)
+                                  }
+                                  disabled={detailDisabled}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${BLOCK_LABELS[kind]}を${POSITION_LABEL[position]}に配置`}
+                                  accessibilityState={{ selected: isSelected }}
+                                  testID={
+                                    testID
+                                      ? `${testID}-cell-${kind}-${position}`
+                                      : undefined
+                                  }
+                                >
+                                  {isSelected && (
+                                    <View style={styles.cellDot} />
+                                  )}
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ))}
+                      </View>
+                      {/* Hidden chip (off-grid) */}
+                      <Pressable
                         style={[
-                          styles.hiddenChipLabel,
-                          displayPlacements[kind] === 'hidden' &&
-                            styles.hiddenChipLabelSelected,
+                          styles.hiddenChip,
+                          currentPosition === 'hidden' &&
+                            styles.hiddenChipSelected,
+                          detailDisabled && styles.cellDisabled,
                         ]}
+                        onPress={() => handlePositionSelect(kind, 'hidden')}
+                        disabled={detailDisabled}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${BLOCK_LABELS[kind]}を非表示にする`}
+                        accessibilityState={{
+                          selected: currentPosition === 'hidden',
+                        }}
+                        testID={
+                          testID ? `${testID}-cell-${kind}-hidden` : undefined
+                        }
                       >
-                        非表示
-                      </Text>
-                    </Pressable>
-                  </View>
-                ))}
+                        <Text
+                          style={[
+                            styles.hiddenChipLabel,
+                            currentPosition === 'hidden' &&
+                              styles.hiddenChipLabelSelected,
+                          ]}
+                        >
+                          非表示
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </View>
             )}
 
@@ -552,6 +569,13 @@ const styles = StyleSheet.create({
   },
   detailSection: {
     paddingTop: 8,
+  },
+  detailLoadingText: {
+    fontSize: 12,
+    color: '#888',
+    textAlign: 'center',
+    paddingVertical: 8,
+    fontStyle: 'italic',
   },
   blockSection: {
     marginBottom: 20,

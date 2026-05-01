@@ -589,11 +589,23 @@ export default function DocumentEditScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ disabled: blockPlacementButtonDisabled }}
                 >
-                  <Ionicons
-                    name="grid-outline"
-                    size={20}
-                    color={blockPlacementButtonDisabled ? '#C7C7CC' : '#007AFF'}
-                  />
+                  {/* SPEC §6.7: アイコン + ラベル両方表示で分かりやすく */}
+                  <View style={styles.actionButtonContent}>
+                    <Ionicons
+                      name="grid-outline"
+                      size={18}
+                      color={blockPlacementButtonDisabled ? '#C7C7CC' : '#007AFF'}
+                      style={styles.blockPlacementButtonIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.saveButtonText,
+                        blockPlacementButtonDisabled && styles.saveButtonTextDisabled,
+                      ]}
+                    >
+                      見た目
+                    </Text>
+                  </View>
                 </Pressable>
                 <Pressable
                   onPress={handleActionSheetOpen}
@@ -792,6 +804,9 @@ const styles = StyleSheet.create({
   blockPlacementHintText: {
     fontSize: 12,
     color: '#666',
+  },
+  blockPlacementButtonIcon: {
+    marginRight: 4,
   },
   headerButton: {
     padding: 4,
