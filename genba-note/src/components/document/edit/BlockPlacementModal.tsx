@@ -141,6 +141,7 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
     webViewHtml,
     isLoading: isPreviewLoading,
     resolvedTemplateId,
+    error: previewError,
   } = useDocumentPreviewHtml({
     source: { kind: 'documentId', documentId },
     blockPlacementsOverride: currentPlacements,
@@ -330,15 +331,29 @@ export const BlockPlacementModal: React.FC<BlockPlacementModalProps> = ({
             {detailExpanded && (
               <View style={styles.detailSection}>
                 {displayPlacements === null && (
-                  // resolvedTemplateId 未解決時のヒント (Codex P5-B iter1 advisory 反映)
-                  <Text
-                    style={styles.detailLoadingText}
-                    testID={
-                      testID ? `${testID}-detail-loading` : undefined
-                    }
-                  >
-                    現在位置を読み込み中…
-                  </Text>
+                  // resolvedTemplateId 未解決時のヒント (Codex P5-B iter1 advisory 反映)。
+                  // error と loading を分岐 (Codex P5-B iter2 advisory 反映): error 時は
+                  // 専用文言 + 再試行ガイダンスを表示し、ユーザに永続 loading の誤認を
+                  // 与えないようにする。
+                  previewError ? (
+                    <Text
+                      style={styles.detailErrorText}
+                      testID={
+                        testID ? `${testID}-detail-error` : undefined
+                      }
+                    >
+                      現在位置の読み込みに失敗しました。一度閉じてから開き直してください。
+                    </Text>
+                  ) : (
+                    <Text
+                      style={styles.detailLoadingText}
+                      testID={
+                        testID ? `${testID}-detail-loading` : undefined
+                      }
+                    >
+                      現在位置を読み込み中…
+                    </Text>
+                  )
                 )}
                 {BLOCK_KINDS.map((kind) => {
                   const currentPosition = displayPlacements?.[kind];
@@ -576,6 +591,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 8,
     fontStyle: 'italic',
+  },
+  detailErrorText: {
+    fontSize: 12,
+    color: '#d9534f',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
   blockSection: {
     marginBottom: 20,
