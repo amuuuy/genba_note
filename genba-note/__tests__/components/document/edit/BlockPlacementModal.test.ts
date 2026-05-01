@@ -10,7 +10,10 @@
  * - UPDATE_BLOCK_PLACEMENTS reducer が isDirty を変えない、blockPlacements 以外を保つ
  */
 
-import { resolvePlacementsForDisplay } from '@/components/document/edit/blockPlacementModalHelpers';
+import {
+  resolvePlacementsForDisplay,
+  resolveEffectiveBlockPlacements,
+} from '@/components/document/edit/blockPlacementModalHelpers';
 import {
   documentEditReducer,
   type DocumentEditState,
@@ -63,6 +66,43 @@ describe('resolvePlacementsForDisplay (P5-A)', () => {
     expect(result.companyStamp).toBe(
       TEMPLATE_DEFAULT_BLOCK_PLACEMENTS.SIMPLE.companyStamp
     );
+  });
+});
+
+// === resolveEffectiveBlockPlacements (P5-D preview/PDF parity) ===
+
+describe('resolveEffectiveBlockPlacements (P5-D)', () => {
+  it('override === undefined → fallback to document value (saved-doc fallback)', () => {
+    const docValue: BlockPlacements = { bankAccount: 'top-left' };
+    const result = resolveEffectiveBlockPlacements(undefined, docValue);
+    expect(result).toEqual(docValue);
+  });
+
+  it('override === undefined + document value === null → null', () => {
+    const result = resolveEffectiveBlockPlacements(undefined, null);
+    expect(result).toBeNull();
+  });
+
+  it('override === null → null pass-through (「最初の配置に戻す」)', () => {
+    // caller の explicit null は document value より優先される
+    const docValue: BlockPlacements = { bankAccount: 'top-left' };
+    const result = resolveEffectiveBlockPlacements(null, docValue);
+    expect(result).toBeNull();
+  });
+
+  it('override === BlockPlacements → override pass-through', () => {
+    // caller の explicit override が document value より優先される
+    const override: BlockPlacements = { remarks: 'bottom-right' };
+    const docValue: BlockPlacements = { bankAccount: 'top-left' };
+    const result = resolveEffectiveBlockPlacements(override, docValue);
+    expect(result).toEqual(override);
+  });
+
+  it('override = explicit hidden → preserved over document default', () => {
+    // hidden override は document の null より優先される (preview / PDF 両方で印影非表示)
+    const override: BlockPlacements = { companyStamp: 'hidden' };
+    const result = resolveEffectiveBlockPlacements(override, null);
+    expect(result).toEqual(override);
   });
 });
 

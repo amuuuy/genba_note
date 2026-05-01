@@ -30,3 +30,24 @@ export function resolvePlacementsForDisplay(
     remarks: override.remarks ?? templateDefault.remarks,
   };
 }
+
+/**
+ * Resolve effective blockPlacements for caller (preview screen, PDF generation 等).
+ *
+ * tri-state semantics (SPEC §3.3.1 と一致):
+ *   - override === undefined: caller の override 不在、document の保存値を使う
+ *   - override === null: caller が「最初の配置に戻す」を要求、null pass-through
+ *   - override === BlockPlacements: caller の explicit 上書き値を採用
+ *
+ * preview/PDF parity (Codex P5-D iter1 blocking 反映):
+ * preview 画面で modal 経由に override を更新したら、WebView だけでなく PDF
+ * 出力にも同じ effective value を反映する必要がある (古い document.blockPlacements
+ * を使うと preview と PDF の配置が乖離する)。本 helper を共通使用することで
+ * 両経路の一致を保証する。
+ */
+export function resolveEffectiveBlockPlacements(
+  override: BlockPlacements | null | undefined,
+  documentValue: BlockPlacements | null
+): BlockPlacements | null {
+  return override !== undefined ? override : documentValue;
+}

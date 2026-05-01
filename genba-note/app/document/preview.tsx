@@ -24,6 +24,7 @@ import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { TemplatePickerModal } from '@/components/document/TemplatePickerModal';
 import { BlockPlacementModal } from '@/components/document/edit';
+import { resolveEffectiveBlockPlacements } from '@/components/document/edit/blockPlacementModalHelpers';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { validatePreviewDocument } from '@/utils/previewDataValidator';
 import { FIT_TO_SCREEN_SCRIPT } from '@/utils/previewHtmlSecurity';
@@ -147,8 +148,22 @@ export default function DocumentPreviewScreen() {
 
     setIsGenerating(true);
     try {
+      // SPEC §6.4 preview/PDF parity (Codex P5-D iter1 blocking 反映):
+      // modal 経由の blockPlacementsOverride を PDF 生成入力にも反映する。
+      // resolvedDocumentWithTotals は source 変更時にしか更新されないため、
+      // modal 更新直後の PDF 共有で WebView と PDF の配置が乖離するリスクが
+      // ある (modal は updateDocument で永続保存するが hook の memoization
+      // ウィンドウ内では古い doc が使われ得る)。effective 値を上書きして渡す。
+      const effectiveBlockPlacements = resolveEffectiveBlockPlacements(
+        blockPlacementsOverride,
+        resolvedDocumentWithTotals.blockPlacements
+      );
+      const documentForPdf = {
+        ...resolvedDocumentWithTotals,
+        blockPlacements: effectiveBlockPlacements,
+      };
       const result = await generateAndSharePdf(
-        { document: resolvedDocumentWithTotals, sensitiveSnapshot },
+        { document: documentForPdf, sensitiveSnapshot },
         { orientation, customFilename }
       );
 
@@ -167,7 +182,7 @@ export default function DocumentPreviewScreen() {
     } finally {
       setIsGenerating(false);
     }
-  }, [resolvedDocumentWithTotals, sensitiveSnapshot, orientation]);
+  }, [resolvedDocumentWithTotals, sensitiveSnapshot, orientation, blockPlacementsOverride]);
 
   const handleFilenameCancel = useCallback(() => {
     setFilenameModalVisible(false);
