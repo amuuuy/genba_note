@@ -298,11 +298,13 @@ export default function DocumentEditScreen() {
         params: { previewData: JSON.stringify(previewDocument) },
       });
     } finally {
+      // codex iter4 blocking 反映: router.push 成功時の blur cleanup で focus=false
+      // が同期的に倒れると、focus ガード付きの reset がスキップされ画面が
+      // soft-lock していた。focus は navigation abort 判定のみに使い、UI
+      // state の解除は blur 後でも確実に実行する。React は unmount 済み
+      // component への setState を warn するだけで crash はしない。
       isPreparingPreviewRef.current = false;
-      // unmount 後の setState は React 警告のため、focus 状態でガード
-      if (isScreenFocusedRef.current) {
-        setIsPreparingPreview(false);
-      }
+      setIsPreparingPreview(false);
     }
   }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot, state.blockPlacements]);
 
