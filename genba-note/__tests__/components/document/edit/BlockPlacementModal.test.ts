@@ -14,7 +14,9 @@ import {
   resolvePlacementsForDisplay,
   resolveEffectiveBlockPlacements,
   applyEffectiveBlockPlacementsToDocument,
+  performPreviewShareConfirm,
 } from '@/components/document/edit/blockPlacementModalHelpers';
+import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
 import {
   documentEditReducer,
   type DocumentEditState,
@@ -150,10 +152,181 @@ describe('applyEffectiveBlockPlacementsToDocument (P5-D)', () => {
     expect(result.notes).toBe(baseDoc.notes);
   });
 
-  it('does not mutate input document', () => {
-    const docBefore = { ...baseDoc };
+  it('does not mutate input document (deep check, P5-D iter3 advisory)', () => {
+    // P5-D iter3 advisory: shallow clone 比較では nested mutation を検出できない。
+    // blockPlacements を別参照で保持し、deep に変更されていないことを確認。
+    const originalBlockPlacements = baseDoc.blockPlacements;
+    const originalRef = baseDoc;
     applyEffectiveBlockPlacementsToDocument(baseDoc, { bankAccount: 'hidden' });
-    expect(baseDoc).toEqual(docBefore);
+    // 同一参照のままで blockPlacements の内容も変わらない
+    expect(baseDoc).toBe(originalRef);
+    expect(baseDoc.blockPlacements).toBe(originalBlockPlacements);
+    expect(baseDoc.blockPlacements).toEqual({ bankAccount: 'top-left' });
+    // override 引数も mutate されない (frozen で deep mutation を検出)
+    const override: BlockPlacements = { remarks: 'top-right' };
+    const frozen = Object.freeze({ ...override });
+    expect(() =>
+      applyEffectiveBlockPlacementsToDocument(baseDoc, frozen)
+    ).not.toThrow();
+  });
+});
+
+// === performPreviewShareConfirm (P5-D iter3 share workflow) ===
+//
+// preview.tsx の handleFilenameConfirm が唯一の経路として呼ぶ async helper。
+// generateAndSharePdf を deps injection で mock し、blockPlacementsOverride が
+// PDF 入力 document.blockPlacements に effective 値で反映されることを担保する。
+// preview.tsx で本 helper 呼出を別実装に置き換えた場合に test が落ちる構造。
+
+describe('performPreviewShareConfirm (P5-D)', () => {
+  function makeDoc(
+    overrides: Partial<DocumentWithTotals> = {}
+  ): DocumentWithTotals {
+    return {
+      id: 'doc-1',
+      documentNo: 'INV-001',
+      type: 'invoice',
+      status: 'draft',
+      clientName: 'テスト顧客',
+      clientAddress: null,
+      customerId: null,
+      subject: null,
+      issueDate: '2026-05-01',
+      validUntil: null,
+      dueDate: '2026-05-31',
+      paidAt: null,
+      lineItems: [],
+      lineItemsCalculated: [],
+      subtotalYen: 0,
+      taxYen: 0,
+      totalYen: 0,
+      taxBreakdown: [],
+      notes: null,
+      issuerSnapshot: {
+        companyName: 'テスト',
+        representativeName: null,
+        address: null,
+        phone: null,
+        fax: null,
+        sealImageBase64: null,
+        contactPerson: null,
+        email: null,
+      },
+      createdAt: 0,
+      updatedAt: 0,
+      carriedForwardAmount: null,
+      blockPlacements: null,
+      ...overrides,
+    };
+  }
+
+  const sensitive: SensitiveIssuerSnapshot = {
+    invoiceNumber: null,
+    bankName: null,
+    branchName: null,
+    accountType: null,
+    accountNumber: null,
+    accountHolderName: null,
+  };
+
+  it('blockPlacementsOverride === undefined → document.blockPlacements (saved-doc) が PDF 入力に渡る', async () => {
+    const doc = makeDoc({ blockPlacements: { bankAccount: 'top-left' } });
+    const mockShare = jest.fn().mockResolvedValue({ success: true });
+    await performPreviewShareConfirm(
+      {
+        document: doc,
+        blockPlacementsOverride: undefined,
+        sensitiveSnapshot: sensitive,
+        orientation: 'PORTRAIT',
+        customFilename: 'test.pdf',
+      },
+      { generateAndSharePdf: mockShare }
+    );
+    expect(mockShare).toHaveBeenCalledTimes(1);
+    expect(mockShare.mock.calls[0][0].document.blockPlacements).toEqual({
+      bankAccount: 'top-left',
+    });
+  });
+
+  it('blockPlacementsOverride === BlockPlacements → effective override が PDF 入力に渡る (saved preview + modal explicit override → PDF parity)', async () => {
+    const doc = makeDoc({ blockPlacements: { bankAccount: 'top-left' } });
+    const override: BlockPlacements = { companyStamp: 'top-center' };
+    const mockShare = jest.fn().mockResolvedValue({ success: true });
+    await performPreviewShareConfirm(
+      {
+        document: doc,
+        blockPlacementsOverride: override,
+        sensitiveSnapshot: sensitive,
+        orientation: 'PORTRAIT',
+        customFilename: 'test.pdf',
+      },
+      { generateAndSharePdf: mockShare }
+    );
+    // override が doc の保存値より優先されて PDF 入力に渡る
+    expect(mockShare.mock.calls[0][0].document.blockPlacements).toEqual(
+      override
+    );
+    // 他フィールドは doc の値が保持される
+    expect(mockShare.mock.calls[0][0].document.id).toBe('doc-1');
+    expect(mockShare.mock.calls[0][0].document.documentNo).toBe('INV-001');
+  });
+
+  it('blockPlacementsOverride === null → null reset が PDF 入力に渡る (saved preview + 「最初の配置に戻す」→ PDF parity)', async () => {
+    const doc = makeDoc({ blockPlacements: { bankAccount: 'top-left' } });
+    const mockShare = jest.fn().mockResolvedValue({ success: true });
+    await performPreviewShareConfirm(
+      {
+        document: doc,
+        blockPlacementsOverride: null,
+        sensitiveSnapshot: sensitive,
+        orientation: 'PORTRAIT',
+        customFilename: 'test.pdf',
+      },
+      { generateAndSharePdf: mockShare }
+    );
+    // explicit null は doc の保存値より優先されて null として渡る
+    // (resolveBlockPlacements が template default に倒す)
+    expect(mockShare.mock.calls[0][0].document.blockPlacements).toBeNull();
+  });
+
+  it('passes orientation and customFilename through options', async () => {
+    const doc = makeDoc();
+    const mockShare = jest.fn().mockResolvedValue({ success: true });
+    await performPreviewShareConfirm(
+      {
+        document: doc,
+        blockPlacementsOverride: undefined,
+        sensitiveSnapshot: sensitive,
+        orientation: 'LANDSCAPE',
+        customFilename: 'invoice-001.pdf',
+      },
+      { generateAndSharePdf: mockShare }
+    );
+    expect(mockShare.mock.calls[0][1]).toEqual({
+      orientation: 'LANDSCAPE',
+      customFilename: 'invoice-001.pdf',
+    });
+  });
+
+  it('passes through generateAndSharePdf result (success / failure pass-through)', async () => {
+    const doc = makeDoc();
+    // failure case
+    const failureResult = {
+      success: false,
+      error: { code: 'VALIDATION_FAILED' as const, message: 'no-no' },
+    };
+    const mockShare = jest.fn().mockResolvedValue(failureResult);
+    const result = await performPreviewShareConfirm(
+      {
+        document: doc,
+        blockPlacementsOverride: undefined,
+        sensitiveSnapshot: sensitive,
+        orientation: 'PORTRAIT',
+        customFilename: 'test.pdf',
+      },
+      { generateAndSharePdf: mockShare }
+    );
+    expect(result).toEqual(failureResult);
   });
 });
 

@@ -24,7 +24,7 @@ import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { TemplatePickerModal } from '@/components/document/TemplatePickerModal';
 import { BlockPlacementModal } from '@/components/document/edit';
-import { applyEffectiveBlockPlacementsToDocument } from '@/components/document/edit/blockPlacementModalHelpers';
+import { performPreviewShareConfirm } from '@/components/document/edit/blockPlacementModalHelpers';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { validatePreviewDocument } from '@/utils/previewDataValidator';
 import { FIT_TO_SCREEN_SCRIPT } from '@/utils/previewHtmlSecurity';
@@ -148,21 +148,19 @@ export default function DocumentPreviewScreen() {
 
     setIsGenerating(true);
     try {
-      // SPEC §6.4 preview/PDF parity (Codex P5-D iter1+iter2 blocking 反映):
-      // modal 経由の blockPlacementsOverride を PDF 生成入力にも反映する。
-      // resolvedDocumentWithTotals は source 変更時にしか更新されないため、
-      // modal 更新直後の PDF 共有で WebView と PDF の配置が乖離するリスクが
-      // ある (modal は updateDocument で永続保存するが hook の memoization
-      // ウィンドウ内では古い doc が使われ得る)。
-      // applyEffectiveBlockPlacementsToDocument を経由して preview.tsx の
-      // 配線を pure helper に集約し、「helper 呼出抜け」の回帰 test も担保。
-      const documentForPdf = applyEffectiveBlockPlacementsToDocument(
-        resolvedDocumentWithTotals,
-        blockPlacementsOverride
-      );
-      const result = await generateAndSharePdf(
-        { document: documentForPdf, sensitiveSnapshot },
-        { orientation, customFilename }
+      // SPEC §6.4 preview/PDF parity — share workflow 全体を pure async helper
+      // (performPreviewShareConfirm) に集約 (Codex P5-D iter3 blocking 反映)。
+      // helper 内で blockPlacementsOverride が generateAndSharePdf 入力に反映される。
+      // test では generateAndSharePdf を mock して helper 経由の配線を直接担保。
+      const result = await performPreviewShareConfirm(
+        {
+          document: resolvedDocumentWithTotals,
+          blockPlacementsOverride,
+          sensitiveSnapshot,
+          orientation,
+          customFilename,
+        },
+        { generateAndSharePdf }
       );
 
       if (!result.success && result.error) {
