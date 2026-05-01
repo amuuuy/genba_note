@@ -15,12 +15,11 @@ import {
   resolveEffectiveBlockPlacements,
   applyEffectiveBlockPlacementsToDocument,
   performPreviewShareConfirm,
+  buildUpdatedPlacements,
+  applyPlacementUpdate,
+  resolveFreshBlockPlacements,
 } from '@/components/document/edit/blockPlacementModalHelpers';
 import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
-import {
-  documentEditReducer,
-  type DocumentEditState,
-} from '@/hooks/useDocumentEdit';
 import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
 import type { BlockPlacements } from '@/types/blockPlacement';
 
@@ -330,116 +329,182 @@ describe('performPreviewShareConfirm (P5-D)', () => {
   });
 });
 
-// === useDocumentEdit reducer: UPDATE_BLOCK_PLACEMENTS action ===
+// === buildUpdatedPlacements (v1.0.3 inline UI) ===
 
-function makeBaseState(overrides: Partial<DocumentEditState> = {}): DocumentEditState {
-  return {
-    documentId: 'doc-1',
-    documentNo: 'INV-001',
-    status: 'draft',
-    customerId: null,
-    values: {
-      type: 'invoice',
-      clientName: 'テスト顧客',
-      clientAddress: '',
-      subject: '件名',
-      issueDate: '2026-05-01',
-      validUntil: '',
-      dueDate: '2026-05-31',
-      paidAt: '',
-      carriedForwardAmount: '',
-      notes: '',
-    },
-    lineItems: [],
-    issuerSnapshot: null,
-    blockPlacements: null,
-    errors: {},
-    isLoading: false,
-    isSaving: false,
-    isDirty: false,
-    errorMessage: null,
-    ...overrides,
-  };
-}
-
-describe('documentEditReducer: UPDATE_BLOCK_PLACEMENTS (P5-B)', () => {
-  it('updates blockPlacements field with new value', () => {
-    const state = makeBaseState({ blockPlacements: null });
-    const next: BlockPlacements = { bankAccount: 'bottom-right' };
-    const result = documentEditReducer(state, {
-      type: 'UPDATE_BLOCK_PLACEMENTS',
-      blockPlacements: next,
-    });
-    expect(result.blockPlacements).toEqual(next);
+describe('buildUpdatedPlacements (v1.0.3)', () => {
+  it('null current + new kind → object with single key', () => {
+    const result = buildUpdatedPlacements(null, 'bankAccount', 'top-left');
+    expect(result).toEqual({ bankAccount: 'top-left' });
   });
 
-  it('accepts null to reset blockPlacements (「最初の配置に戻す」)', () => {
-    const state = makeBaseState({
-      blockPlacements: { bankAccount: 'top-left' },
+  it('partial current + change different kind → merge (preserve other keys)', () => {
+    const current: BlockPlacements = { bankAccount: 'bottom-right' };
+    const result = buildUpdatedPlacements(current, 'remarks', 'top-center');
+    expect(result).toEqual({
+      bankAccount: 'bottom-right',
+      remarks: 'top-center',
     });
-    const result = documentEditReducer(state, {
-      type: 'UPDATE_BLOCK_PLACEMENTS',
-      blockPlacements: null,
-    });
-    expect(result.blockPlacements).toBeNull();
   });
 
-  it('does NOT mark isDirty (永続保存は modal 内で完了済、in-memory 同期のみ)', () => {
-    const state = makeBaseState({ isDirty: false, blockPlacements: null });
-    const result = documentEditReducer(state, {
-      type: 'UPDATE_BLOCK_PLACEMENTS',
-      blockPlacements: { remarks: 'top-left' },
+  it('current + change same kind → overwrite (preserve other keys)', () => {
+    const current: BlockPlacements = {
+      bankAccount: 'bottom-right',
+      companyStamp: 'top-left',
+    };
+    const result = buildUpdatedPlacements(current, 'bankAccount', 'hidden');
+    expect(result).toEqual({
+      bankAccount: 'hidden',
+      companyStamp: 'top-left',
     });
-    expect(result.isDirty).toBe(false);
   });
 
-  it('preserves isDirty=true if it was already true', () => {
-    // 他フィールドの未保存変更がある状態で BlockPlacementModal を使った場合、
-    // isDirty=true は変えずにそのまま保持される
-    const state = makeBaseState({ isDirty: true, blockPlacements: null });
-    const result = documentEditReducer(state, {
-      type: 'UPDATE_BLOCK_PLACEMENTS',
-      blockPlacements: { remarks: 'top-left' },
-    });
-    expect(result.isDirty).toBe(true);
-  });
-
-  it('does NOT modify other state fields (values, lineItems, errors, etc.)', () => {
-    const state = makeBaseState({
-      values: {
-        type: 'estimate',
-        clientName: '保持される',
-        clientAddress: '住所',
-        subject: '件名',
-        issueDate: '2026-05-01',
-        validUntil: '2026-05-31',
-        dueDate: '',
-        paidAt: '',
-        carriedForwardAmount: '1000',
-        notes: '備考',
-      },
-      lineItems: [
-        {
-          id: 'l1',
-          name: '項目A',
-          quantityMilli: 1000,
-          unit: '式',
-          unitPrice: 100,
-          taxRate: 10,
-        },
-      ],
-      errors: { clientName: 'エラー保持' },
-      errorMessage: 'メッセージ保持',
-    });
-    const result = documentEditReducer(state, {
-      type: 'UPDATE_BLOCK_PLACEMENTS',
-      blockPlacements: { bankAccount: 'hidden' },
-    });
-    expect(result.values).toBe(state.values);
-    expect(result.lineItems).toBe(state.lineItems);
-    expect(result.errors).toBe(state.errors);
-    expect(result.errorMessage).toBe(state.errorMessage);
-    expect(result.documentId).toBe(state.documentId);
-    expect(result.documentNo).toBe(state.documentNo);
+  it('does NOT mutate input current', () => {
+    const current: BlockPlacements = { bankAccount: 'top-left' };
+    const before = { ...current };
+    buildUpdatedPlacements(current, 'companyStamp', 'bottom-center');
+    expect(current).toEqual(before);
   });
 });
+
+// === applyPlacementUpdate (v1.0.3 inline UI) ===
+
+describe('applyPlacementUpdate (v1.0.3)', () => {
+  it('success case → returns success with placements pass-through', async () => {
+    const placements: BlockPlacements = { bankAccount: 'bottom-right' };
+    const mockUpdate = jest.fn().mockResolvedValue({ success: true });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({ success: true, placements });
+    expect(mockUpdate).toHaveBeenCalledWith('doc-1', { blockPlacements: placements });
+  });
+
+  it('null reset → calls updateDocument with null and returns success', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({ success: true });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: null },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({ success: true, placements: null });
+    expect(mockUpdate).toHaveBeenCalledWith('doc-1', { blockPlacements: null });
+  });
+
+  it('updateDocument returns success:false → returns failure with error message', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({
+      success: false,
+      error: { message: '保存に失敗しました (storage full)' },
+    });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { bankAccount: 'top-left' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: '保存に失敗しました (storage full)',
+    });
+  });
+
+  it('updateDocument returns success:false without error message → fallback message', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({ success: false });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { bankAccount: 'top-left' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: '保存に失敗しました',
+    });
+  });
+
+  it('updateDocument throws → returns failure with thrown error message', async () => {
+    const mockUpdate = jest.fn().mockRejectedValue(new Error('disk corrupt'));
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { remarks: 'hidden' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: 'disk corrupt',
+    });
+  });
+
+  it('updateDocument throws non-Error → returns failure with fallback message', async () => {
+    const mockUpdate = jest.fn().mockRejectedValue('plain string error');
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { remarks: 'hidden' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: '保存に失敗しました',
+    });
+  });
+});
+
+// === resolveFreshBlockPlacements (v1.0.3 navigation freshness) ===
+
+describe('resolveFreshBlockPlacements (v1.0.3)', () => {
+  it('documentId null → fallback (新規未保存書類、AsyncStorage 読まない)', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn();
+    const result = await resolveFreshBlockPlacements(null, fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fallback);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('documentId set + getDocument success → fresh.data.blockPlacements を返す (再 preview で inline UI 更新を反映)', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const fresh: BlockPlacements = { bankAccount: 'bottom-right', remarks: 'hidden' };
+    const mockGet = jest.fn().mockResolvedValue({
+      success: true,
+      data: { blockPlacements: fresh },
+    });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fresh);
+    expect(mockGet).toHaveBeenCalledWith('doc-1');
+  });
+
+  it('documentId set + getDocument success + null blockPlacements → null pass-through', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn().mockResolvedValue({
+      success: true,
+      data: { blockPlacements: null },
+    });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('documentId set + getDocument failure → fallback (defensive、AsyncStorage 障害時)', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn().mockResolvedValue({ success: false });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fallback);
+  });
+
+  it('documentId set + getDocument data null → fallback', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn().mockResolvedValue({ success: true, data: null });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fallback);
+  });
+
+  it('null fallback + null documentId → null (deeply default state)', async () => {
+    const mockGet = jest.fn();
+    const result = await resolveFreshBlockPlacements(null, null, {
+      getDocument: mockGet,
+    });
+    expect(result).toBeNull();
+  });
+});
+

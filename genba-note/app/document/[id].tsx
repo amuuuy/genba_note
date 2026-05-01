@@ -28,7 +28,7 @@ import type { Customer } from '@/types/customer';
 import { useDocumentEdit } from '@/hooks/useDocumentEdit';
 import { useLineItemEditor } from '@/hooks/useLineItemEditor';
 import { useReadOnlyMode } from '@/hooks/useReadOnlyMode';
-import { DocumentEditForm, SaveActionSheet, PublishConfirmModal, BlockPlacementModal } from '@/components/document/edit';
+import { DocumentEditForm, SaveActionSheet, PublishConfirmModal } from '@/components/document/edit';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { WarningDialog } from '@/components/common';
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
@@ -41,6 +41,8 @@ import { enrichDocumentWithTotals } from '@/domain/lineItem/calculationService';
 import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { changeDocumentStatus, sanitizeDocumentType } from '@/domain/document';
+import { getDocument } from '@/domain/document/documentService';
+import { resolveFreshBlockPlacements } from '@/components/document/edit/blockPlacementModalHelpers';
 import { createUnitPrice, lineItemToUnitPriceInput } from '@/domain/unitPrice';
 import type { LineItemInput } from '@/domain/lineItem/lineItemService';
 import { getSettings } from '@/storage/asyncStorageService';
@@ -67,7 +69,6 @@ export default function DocumentEditScreen() {
     updateField,
     updateCustomerId,
     updateLineItems,
-    updateBlockPlacements,
     save,
     changeStatus,
     shouldShowSentWarning,
@@ -87,8 +88,6 @@ export default function DocumentEditScreen() {
   const [pdfValidation, setPdfValidation] = useState<PdfValidationResult | null>(null);
   const [showFilenameEdit, setShowFilenameEdit] = useState(false);
   const [savedDocumentForPdf, setSavedDocumentForPdf] = useState<Document | null>(null);
-  // BlockPlacementModal 開閉 (SPEC §6.7 「見た目」ボタンから開く)
-  const [showBlockPlacementModal, setShowBlockPlacementModal] = useState(false);
 
   // Default filename for the FilenameEditModal (e.g., "INV-040_請求書")
   const defaultFilename = useMemo(() => {
@@ -106,6 +105,20 @@ export default function DocumentEditScreen() {
   // Ref to latest isPublishing for back handlers
   const isPublishingRef = useRef(isPublishing);
   isPublishingRef.current = isPublishing;
+
+  // v1.0.3: handlePreview の async fetch 中の race guard (codex iter3 blocking 反映)。
+  // - `isScreenFocusedRef`: useFocusEffect ベースで focus 状態を追跡。React Navigation
+  //   stack では blur 中も mounted のままなので、unmount 検知だけでは blur 中の race
+  //   を捕捉できない。focus を持っている時のみ navigation を許可する。
+  // - `isPreparingPreviewRef`: 同期ロック (rapid tap での多重起動防止)
+  // - `isPreparingPreview` (state): UI 全般の disable 伝播 (header back / action sheet /
+  //   PDF / SaveActionSheet 内 preview button)
+  const isScreenFocusedRef = useRef(false);
+  const isPreparingPreviewRef = useRef(false);
+  const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+  // Ref to latest isPreparingPreview for back handlers (BackHandler 等で同期的に参照)
+  const isPreparingPreviewStateRef = useRef(isPreparingPreview);
+  isPreparingPreviewStateRef.current = isPreparingPreview;
 
   // Reset initialization flag when document ID changes
   useEffect(() => {
@@ -156,6 +169,10 @@ export default function DocumentEditScreen() {
     if (isPublishingRef.current) {
       return true; // Prevent back during publish flow
     }
+    // v1.0.3: preview 起動 fetch 中の back gesture を block (codex iter3 blocking 反映)
+    if (isPreparingPreviewStateRef.current) {
+      return true;
+    }
     if (isDirtyRef.current) {
       Alert.alert(
         '未保存の変更があります',
@@ -170,15 +187,21 @@ export default function DocumentEditScreen() {
     return false; // Allow default back
   }, []);
 
-  // Handle Android hardware back button
+  // Handle Android hardware back button + screen focus tracking (v1.0.3)。
+  // useFocusEffect の cleanup は blur 時に走る → isScreenFocusedRef を false に倒すことで
+  // handlePreview の await 後 navigation を blur 中に abort 可能 (codex iter3 blocking 反映)。
   useFocusEffect(
     useCallback(() => {
+      isScreenFocusedRef.current = true;
       const onBackPress = () => {
         return showUnsavedChangesAlert();
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-      return () => subscription.remove();
+      return () => {
+        isScreenFocusedRef.current = false;
+        subscription.remove();
+      };
     }, [showUnsavedChangesAlert])
   );
 
@@ -199,57 +222,90 @@ export default function DocumentEditScreen() {
   }, [save, isNewDocument]);
 
   // Handle preview navigation (without saving)
-  const handlePreview = useCallback(() => {
+  const handlePreview = useCallback(async () => {
+    // v1.0.3 codex iter2 blocking: 多重起動 / unmount race の防止。
+    // 同期ロックで rapid tap を弾く (state は UI disable 用)。
+    if (isPreparingPreviewRef.current) return;
+    isPreparingPreviewRef.current = true;
+    setIsPreparingPreview(true);
     setShowActionSheet(false);
 
-    // Build document data for preview.
-    // carriedForwardAmount は save/update 経路と同じ変換規約:
-    // 空文字 → null、parseInt → NaN なら null、それ以外は number。
-    // これがないと未保存 preview で繰越金額が脱落して合計が編集画面とズレる
-    // (codex P3 final review iter2 blocking)。
-    const carriedRaw = state.values.carriedForwardAmount;
-    const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
-    const carriedForwardAmount =
-      carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
+    try {
+      // Build document data for preview.
+      // carriedForwardAmount は save/update 経路と同じ変換規約:
+      // 空文字 → null、parseInt → NaN なら null、それ以外は number。
+      // これがないと未保存 preview で繰越金額が脱落して合計が編集画面とズレる
+      // (codex P3 final review iter2 blocking)。
+      const carriedRaw = state.values.carriedForwardAmount;
+      const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
+      const carriedForwardAmount =
+        carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
 
-    const previewDocument: Partial<Document> = {
-      id: state.documentId || '',
-      documentNo: state.documentNo || '',
-      type: state.values.type,
-      status: state.status || 'draft',
-      clientName: state.values.clientName,
-      clientAddress: state.values.clientAddress || null,
-      subject: state.values.subject || null,
-      issueDate: state.values.issueDate,
-      validUntil: state.values.validUntil || null,
-      dueDate: state.values.dueDate || null,
-      paidAt: state.values.paidAt || null,
-      lineItems: state.lineItems,
-      carriedForwardAmount,
-      notes: state.values.notes || null,
-      issuerSnapshot: state.issuerSnapshot ?? {
-        companyName: null,
-        representativeName: null,
-        address: null,
-        phone: null,
-        fax: null,
-        sealImageBase64: null,
-        contactPerson: null,
-        email: null,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
-      // preview に伝播させる。これがないと保存済み override が preview で
-      // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
-      blockPlacements: state.blockPlacements,
-    };
+      // v1.0.3: 保存済み書類は preview の inline 配置変更 UI で blockPlacements が
+      // 即時 AsyncStorage に保存される。preview から戻った後の edit state は本値を
+      // 反映していないため、再 preview 直前に helper 経由で最新値を取りに行く
+      // (stale 値再注入の防止、codex arch review blocking #2 反映)。
+      const blockPlacementsForPreview = await resolveFreshBlockPlacements(
+        state.documentId,
+        state.blockPlacements,
+        { getDocument }
+      );
+      // codex iter3 blocking 反映: await 中に画面 blur (別画面遷移開始 / unmount) したら
+      // 古い callback が router.push してしまう race を防ぐ。React Navigation stack では
+      // blur 中も mounted のままなので focus 状態 ref で判定する。
+      if (!isScreenFocusedRef.current) return;
 
-    // Navigate to preview with the document data
-    router.push({
-      pathname: '/document/preview',
-      params: { previewData: JSON.stringify(previewDocument) },
-    });
+      const previewDocument: Partial<Document> = {
+        id: state.documentId || '',
+        documentNo: state.documentNo || '',
+        type: state.values.type,
+        status: state.status || 'draft',
+        clientName: state.values.clientName,
+        clientAddress: state.values.clientAddress || null,
+        subject: state.values.subject || null,
+        issueDate: state.values.issueDate,
+        validUntil: state.values.validUntil || null,
+        dueDate: state.values.dueDate || null,
+        paidAt: state.values.paidAt || null,
+        lineItems: state.lineItems,
+        carriedForwardAmount,
+        notes: state.values.notes || null,
+        issuerSnapshot: state.issuerSnapshot ?? {
+          companyName: null,
+          representativeName: null,
+          address: null,
+          phone: null,
+          fax: null,
+          sealImageBase64: null,
+          contactPerson: null,
+          email: null,
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
+        // preview に伝播させる。これがないと保存済み override が preview で
+        // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
+        // v1.0.3: 保存済み書類では fresh fetch 経由で最新値を採用 (上記参照)。
+        blockPlacements: blockPlacementsForPreview,
+      };
+
+      // codex iter3 blocking 反映: navigate 直前にも focus 状態を最終確認。
+      if (!isScreenFocusedRef.current) return;
+
+      // Navigate to preview with the document data
+      router.push({
+        pathname: '/document/preview',
+        params: { previewData: JSON.stringify(previewDocument) },
+      });
+    } finally {
+      // codex iter4 blocking 反映: router.push 成功時の blur cleanup で focus=false
+      // が同期的に倒れると、focus ガード付きの reset がスキップされ画面が
+      // soft-lock していた。focus は navigation abort 判定のみに使い、UI
+      // state の解除は blur 後でも確実に実行する。React は unmount 済み
+      // component への setState を warn するだけで crash はしない。
+      isPreparingPreviewRef.current = false;
+      setIsPreparingPreview(false);
+    }
   }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot, state.blockPlacements]);
 
   // Handle save as draft (existing save behavior)
@@ -550,72 +606,39 @@ export default function DocumentEditScreen() {
       <Stack.Screen
         options={{
           title: screenTitle,
-          gestureEnabled: !isPublishing,
-          headerLeft: () => (
-            <Pressable
-              onPress={handleBackPress}
-              hitSlop={8}
-              style={styles.headerButton}
-              disabled={isPublishing}
-              accessibilityLabel="戻る"
-              accessibilityRole="button"
-            >
-              <Ionicons name="chevron-back" size={28} color={isPublishing ? '#C7C7CC' : '#007AFF'} />
-            </Pressable>
-          ),
+          // v1.0.3 codex iter3 blocking 反映: preview 起動 fetch 中は iOS スワイプも無効化。
+          gestureEnabled: !isPublishing && !isPreparingPreview,
+          headerLeft: () => {
+            // v1.0.3 codex iter3 blocking 反映: preview fetch 中は back も disable。
+            const backDisabled = isPublishing || isPreparingPreview;
+            return (
+              <Pressable
+                onPress={handleBackPress}
+                hitSlop={8}
+                style={styles.headerButton}
+                disabled={backDisabled}
+                accessibilityLabel="戻る"
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-back" size={28} color={backDisabled ? '#C7C7CC' : '#007AFF'} />
+              </Pressable>
+            );
+          },
           headerRight: () => {
-            // SPEC §6.7.1 codex Q4=A: 新規未保存書類 (state.documentId 未確定) では
-            // 「見た目」ボタンを disabled にし、近くにヒントを表示する (form 上部)。
-            // updateDocument(id, ...) は永続 ID 必須で、id='new' では呼べない。
-            const blockPlacementButtonDisabled =
-              !state.documentId ||
-              state.isSaving ||
-              isPublishing ||
-              isReadOnlyMode;
+            // v1.0.3: 「見た目」header button 廃止 (preview 画面に inline 統合)。
+            // codex iter3 blocking 反映: preview 起動 fetch 中は他フローを開始させない。
+            const headerDisabled = state.isSaving || isPublishing || isReadOnlyMode || isPreparingPreview;
             return (
               <View style={styles.headerButtons}>
                 <Pressable
-                  onPress={() => setShowBlockPlacementModal(true)}
-                  disabled={blockPlacementButtonDisabled}
-                  style={[
-                    styles.headerButton,
-                    blockPlacementButtonDisabled && styles.headerButtonDisabled,
-                  ]}
-                  accessibilityLabel={
-                    !state.documentId
-                      ? '見た目を整える (先に保存が必要)'
-                      : '見た目を整える'
-                  }
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: blockPlacementButtonDisabled }}
-                >
-                  {/* SPEC §6.7: アイコン + ラベル両方表示で分かりやすく */}
-                  <View style={styles.actionButtonContent}>
-                    <Ionicons
-                      name="grid-outline"
-                      size={18}
-                      color={blockPlacementButtonDisabled ? '#C7C7CC' : '#007AFF'}
-                      style={styles.blockPlacementButtonIcon}
-                    />
-                    <Text
-                      style={[
-                        styles.saveButtonText,
-                        blockPlacementButtonDisabled && styles.saveButtonTextDisabled,
-                      ]}
-                    >
-                      見た目
-                    </Text>
-                  </View>
-                </Pressable>
-                <Pressable
                   onPress={handleActionSheetOpen}
-                  disabled={state.isSaving || isPublishing || isReadOnlyMode}
-                  style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
-                  accessibilityLabel={isReadOnlyMode ? '読み取り専用モード' : state.isSaving || isPublishing ? '処理中' : 'アクション'}
+                  disabled={headerDisabled}
+                  style={[styles.headerButton, headerDisabled && styles.headerButtonDisabled]}
+                  accessibilityLabel={isReadOnlyMode ? '読み取り専用モード' : state.isSaving || isPublishing || isPreparingPreview ? '処理中' : 'アクション'}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode, busy: state.isSaving || isPublishing }}
+                  accessibilityState={{ disabled: headerDisabled, busy: state.isSaving || isPublishing || isPreparingPreview }}
                 >
-                  {state.isSaving || isPublishing ? (
+                  {state.isSaving || isPublishing || isPreparingPreview ? (
                     <ActivityIndicator size="small" color="#007AFF" />
                   ) : (
                     <View style={styles.actionButtonContent}>
@@ -631,13 +654,13 @@ export default function DocumentEditScreen() {
                 </Pressable>
                 <Pressable
                   onPress={handlePublishPdf}
-                  disabled={state.isSaving || isPublishing || isReadOnlyMode}
-                  style={[styles.headerButton, (state.isSaving || isPublishing || isReadOnlyMode) && styles.headerButtonDisabled]}
+                  disabled={headerDisabled}
+                  style={[styles.headerButton, headerDisabled && styles.headerButtonDisabled]}
                   accessibilityLabel="PDF発行"
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: state.isSaving || isPublishing || isReadOnlyMode }}
+                  accessibilityState={{ disabled: headerDisabled }}
                 >
-                  <Text style={[styles.saveButtonText, (state.isSaving || isPublishing || isReadOnlyMode) && styles.saveButtonTextDisabled]}>
+                  <Text style={[styles.saveButtonText, headerDisabled && styles.saveButtonTextDisabled]}>
                     PDF
                   </Text>
                 </Pressable>
@@ -652,23 +675,6 @@ export default function DocumentEditScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
-        {/* SPEC §6.7.1: 新規未保存書類では「見た目」ボタン disabled、近くにヒント */}
-        {!state.documentId && (
-          <View
-            style={styles.blockPlacementHint}
-            accessibilityRole="text"
-          >
-            <Ionicons
-              name="information-circle-outline"
-              size={14}
-              color="#666"
-              style={styles.blockPlacementHintIcon}
-            />
-            <Text style={styles.blockPlacementHintText}>
-              先に保存すると見た目を整えられます
-            </Text>
-          </View>
-        )}
 
         <DocumentEditForm
           values={state.values}
@@ -705,7 +711,7 @@ export default function DocumentEditScreen() {
         isDirty={state.isDirty}
         isNewDocument={isNewDocument}
         currentStatus={state.status}
-        isSaving={state.isSaving || isPublishing}
+        isSaving={state.isSaving || isPublishing || isPreparingPreview}
         onPreview={handlePreview}
         onSaveDraft={handleSaveDraft}
         onPublishPdf={handlePublishPdf}
@@ -731,17 +737,6 @@ export default function DocumentEditScreen() {
         testID="edit-filename-modal"
       />
 
-      {/* SPEC §6.2 「見た目を整える」モーダル — documentId 確定済の時のみ render */}
-      {state.documentId && (
-        <BlockPlacementModal
-          visible={showBlockPlacementModal}
-          documentId={state.documentId}
-          currentPlacements={state.blockPlacements}
-          onClose={() => setShowBlockPlacementModal(false)}
-          onUpdated={updateBlockPlacements}
-          testID="block-placement-modal"
-        />
-      )}
     </GestureHandlerRootView>
   );
 }
@@ -788,25 +783,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  blockPlacementHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#F2F2F7',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E5EA',
-  },
-  blockPlacementHintIcon: {
-    marginRight: 6,
-  },
-  blockPlacementHintText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  blockPlacementButtonIcon: {
-    marginRight: 4,
   },
   headerButton: {
     padding: 4,
