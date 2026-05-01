@@ -10,7 +10,7 @@ import type {
   DocumentWithTotals,
   SensitiveIssuerSnapshot,
 } from '@/types/document';
-import type { BlockPlacements } from '@/types/blockPlacement';
+import type { BlockKind, BlockPlacements, BlockPosition } from '@/types/blockPlacement';
 import type { DocumentTemplateId, PreviewOrientation } from '@/types/settings';
 import type {
   PdfTemplateInput,
@@ -119,6 +119,81 @@ export async function performPreviewShareConfirm(
     { document: documentForPdf, sensitiveSnapshot: args.sensitiveSnapshot },
     { orientation: args.orientation, customFilename: args.customFilename }
   );
+}
+
+/**
+ * Build updated placements for a single-block change (v1.0.3 inline UI).
+ *
+ * 既存 override (currentPlacements) を保持しつつ kind 1 つだけ position に書き換え。
+ * `mergeBlockPlacements` (documentService 側) と同じセマンティクス: 他ブロックの
+ * override は維持され、変更しない kind は省略しない (UI 操作の冪等性確保)。
+ */
+export function buildUpdatedPlacements(
+  current: BlockPlacements | null,
+  kind: BlockKind,
+  position: BlockPosition
+): BlockPlacements {
+  return {
+    ...(current ?? {}),
+    [kind]: position,
+  };
+}
+
+/**
+ * Apply placement update via updateDocument (v1.0.3 inline UI).
+ *
+ * preview 画面の inline UI が tap ごとに呼ぶ async helper。
+ * deps injection (updateDocument) で unit-testable に。
+ *
+ * tri-state semantics:
+ *   - placements === null   → 「最初の配置に戻す」(全ブロック default 復帰)
+ *   - placements === object → 1 ブロック以上の override (mergeBlockPlacements で merge)
+ *
+ * 失敗パスは success:false + errorMessage で返却。caller (component) が
+ * Alert / 視覚エラー表示を担当。例外は throw せず受け取って message に変換。
+ */
+export interface ApplyPlacementUpdateArgs {
+  documentId: string;
+  placements: BlockPlacements | null;
+}
+
+export interface UpdateDocumentResultLike {
+  success: boolean;
+  error?: { message?: string };
+}
+
+export interface ApplyPlacementUpdateDeps {
+  updateDocument: (
+    id: string,
+    input: { blockPlacements: BlockPlacements | null }
+  ) => Promise<UpdateDocumentResultLike>;
+}
+
+export type ApplyPlacementUpdateResult =
+  | { success: true; placements: BlockPlacements | null }
+  | { success: false; errorMessage: string };
+
+export async function applyPlacementUpdate(
+  args: ApplyPlacementUpdateArgs,
+  deps: ApplyPlacementUpdateDeps
+): Promise<ApplyPlacementUpdateResult> {
+  try {
+    const result = await deps.updateDocument(args.documentId, {
+      blockPlacements: args.placements,
+    });
+    if (!result.success) {
+      return {
+        success: false,
+        errorMessage: result.error?.message ?? '保存に失敗しました',
+      };
+    }
+    return { success: true, placements: args.placements };
+  } catch (err) {
+    return {
+      success: false,
+      errorMessage: err instanceof Error ? err.message : '保存に失敗しました',
+    };
+  }
 }
 
 /**

@@ -15,6 +15,8 @@ import {
   resolveEffectiveBlockPlacements,
   applyEffectiveBlockPlacementsToDocument,
   performPreviewShareConfirm,
+  buildUpdatedPlacements,
+  applyPlacementUpdate,
 } from '@/components/document/edit/blockPlacementModalHelpers';
 import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
 import {
@@ -327,6 +329,119 @@ describe('performPreviewShareConfirm (P5-D)', () => {
       { generateAndSharePdf: mockShare }
     );
     expect(result).toEqual(failureResult);
+  });
+});
+
+// === buildUpdatedPlacements (v1.0.3 inline UI) ===
+
+describe('buildUpdatedPlacements (v1.0.3)', () => {
+  it('null current + new kind → object with single key', () => {
+    const result = buildUpdatedPlacements(null, 'bankAccount', 'top-left');
+    expect(result).toEqual({ bankAccount: 'top-left' });
+  });
+
+  it('partial current + change different kind → merge (preserve other keys)', () => {
+    const current: BlockPlacements = { bankAccount: 'bottom-right' };
+    const result = buildUpdatedPlacements(current, 'remarks', 'top-center');
+    expect(result).toEqual({
+      bankAccount: 'bottom-right',
+      remarks: 'top-center',
+    });
+  });
+
+  it('current + change same kind → overwrite (preserve other keys)', () => {
+    const current: BlockPlacements = {
+      bankAccount: 'bottom-right',
+      companyStamp: 'top-left',
+    };
+    const result = buildUpdatedPlacements(current, 'bankAccount', 'hidden');
+    expect(result).toEqual({
+      bankAccount: 'hidden',
+      companyStamp: 'top-left',
+    });
+  });
+
+  it('does NOT mutate input current', () => {
+    const current: BlockPlacements = { bankAccount: 'top-left' };
+    const before = { ...current };
+    buildUpdatedPlacements(current, 'companyStamp', 'bottom-center');
+    expect(current).toEqual(before);
+  });
+});
+
+// === applyPlacementUpdate (v1.0.3 inline UI) ===
+
+describe('applyPlacementUpdate (v1.0.3)', () => {
+  it('success case → returns success with placements pass-through', async () => {
+    const placements: BlockPlacements = { bankAccount: 'bottom-right' };
+    const mockUpdate = jest.fn().mockResolvedValue({ success: true });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({ success: true, placements });
+    expect(mockUpdate).toHaveBeenCalledWith('doc-1', { blockPlacements: placements });
+  });
+
+  it('null reset → calls updateDocument with null and returns success', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({ success: true });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: null },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({ success: true, placements: null });
+    expect(mockUpdate).toHaveBeenCalledWith('doc-1', { blockPlacements: null });
+  });
+
+  it('updateDocument returns success:false → returns failure with error message', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({
+      success: false,
+      error: { message: '保存に失敗しました (storage full)' },
+    });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { bankAccount: 'top-left' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: '保存に失敗しました (storage full)',
+    });
+  });
+
+  it('updateDocument returns success:false without error message → fallback message', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({ success: false });
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { bankAccount: 'top-left' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: '保存に失敗しました',
+    });
+  });
+
+  it('updateDocument throws → returns failure with thrown error message', async () => {
+    const mockUpdate = jest.fn().mockRejectedValue(new Error('disk corrupt'));
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { remarks: 'hidden' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: 'disk corrupt',
+    });
+  });
+
+  it('updateDocument throws non-Error → returns failure with fallback message', async () => {
+    const mockUpdate = jest.fn().mockRejectedValue('plain string error');
+    const result = await applyPlacementUpdate(
+      { documentId: 'doc-1', placements: { remarks: 'hidden' } },
+      { updateDocument: mockUpdate }
+    );
+    expect(result).toEqual({
+      success: false,
+      errorMessage: '保存に失敗しました',
+    });
   });
 });
 
