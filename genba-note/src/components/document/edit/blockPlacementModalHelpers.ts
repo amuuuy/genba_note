@@ -127,6 +127,43 @@ export async function performPreviewShareConfirm(
 }
 
 /**
+ * Resolve the freshest `blockPlacements` for preview navigation (v1.0.3).
+ *
+ * Edit 画面が `previewData` 経由で preview に navigate する直前に呼ぶ。
+ * 直近の preview セッションで inline UI が `updateDocument` で永続保存した
+ * 値を AsyncStorage から読み戻して previewData に積む。
+ *
+ * 用途: edit 画面の `state.blockPlacements` は preview の inline UI 更新を
+ * 受けないため、再 preview で stale 値が再注入される問題を防ぐ
+ * (codex iter1 blocking #2 反映)。
+ *
+ * tri-state semantics:
+ *   - documentId === null → 新規未保存書類、fallback (= state 値) を返す
+ *   - documentId set + getDocument 成功 → fresh.data.blockPlacements を返す
+ *   - documentId set + getDocument 失敗 → fallback を返す (defensive)
+ *   - documentId set + data 不在 → fallback を返す
+ */
+export interface ResolveFreshBlockPlacementsDeps {
+  getDocument: (id: string) => Promise<{
+    success: boolean;
+    data?: { blockPlacements: BlockPlacements | null } | null;
+  }>;
+}
+
+export async function resolveFreshBlockPlacements(
+  documentId: string | null,
+  fallback: BlockPlacements | null,
+  deps: ResolveFreshBlockPlacementsDeps
+): Promise<BlockPlacements | null> {
+  if (!documentId) return fallback;
+  const result = await deps.getDocument(documentId);
+  if (result.success && result.data) {
+    return result.data.blockPlacements;
+  }
+  return fallback;
+}
+
+/**
  * Build updated placements for a single-block change (v1.0.3 inline UI).
  *
  * 既存 override (currentPlacements) を保持しつつ kind 1 つだけ position に書き換え。

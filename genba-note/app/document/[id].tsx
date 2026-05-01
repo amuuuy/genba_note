@@ -42,6 +42,7 @@ import { resolveIssuerInfo } from '@/pdf/issuerResolverService';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { changeDocumentStatus, sanitizeDocumentType } from '@/domain/document';
 import { getDocument } from '@/domain/document/documentService';
+import { resolveFreshBlockPlacements } from '@/components/document/edit/blockPlacementModalHelpers';
 import { createUnitPrice, lineItemToUnitPriceInput } from '@/domain/unitPrice';
 import type { LineItemInput } from '@/domain/lineItem/lineItemService';
 import { getSettings } from '@/storage/asyncStorageService';
@@ -104,6 +105,20 @@ export default function DocumentEditScreen() {
   // Ref to latest isPublishing for back handlers
   const isPublishingRef = useRef(isPublishing);
   isPublishingRef.current = isPublishing;
+
+  // v1.0.3: handlePreview の async fetch 中の unmount guard (codex iter2 blocking 反映)。
+  // getDocument await 中に画面離脱 / unmount すると、古い callback が後から
+  // router.push してしまう race を防ぐ。preview 起動中は同期ロック (isPreparingPreviewRef)
+  // で多重起動も併せて弾く。
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  const isPreparingPreviewRef = useRef(false);
+  const [isPreparingPreview, setIsPreparingPreview] = useState(false);
 
   // Reset initialization flag when document ID changes
   useEffect(() => {
@@ -198,69 +213,85 @@ export default function DocumentEditScreen() {
 
   // Handle preview navigation (without saving)
   const handlePreview = useCallback(async () => {
+    // v1.0.3 codex iter2 blocking: 多重起動 / unmount race の防止。
+    // 同期ロックで rapid tap を弾く (state は UI disable 用)。
+    if (isPreparingPreviewRef.current) return;
+    isPreparingPreviewRef.current = true;
+    setIsPreparingPreview(true);
     setShowActionSheet(false);
 
-    // Build document data for preview.
-    // carriedForwardAmount は save/update 経路と同じ変換規約:
-    // 空文字 → null、parseInt → NaN なら null、それ以外は number。
-    // これがないと未保存 preview で繰越金額が脱落して合計が編集画面とズレる
-    // (codex P3 final review iter2 blocking)。
-    const carriedRaw = state.values.carriedForwardAmount;
-    const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
-    const carriedForwardAmount =
-      carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
+    try {
+      // Build document data for preview.
+      // carriedForwardAmount は save/update 経路と同じ変換規約:
+      // 空文字 → null、parseInt → NaN なら null、それ以外は number。
+      // これがないと未保存 preview で繰越金額が脱落して合計が編集画面とズレる
+      // (codex P3 final review iter2 blocking)。
+      const carriedRaw = state.values.carriedForwardAmount;
+      const carriedParsed = carriedRaw ? parseInt(carriedRaw, 10) : NaN;
+      const carriedForwardAmount =
+        carriedRaw && !isNaN(carriedParsed) ? carriedParsed : null;
 
-    // v1.0.3: 保存済み書類は preview の inline 配置変更 UI で blockPlacements が
-    // 即時 AsyncStorage に保存される。preview から戻った後の edit state は本値を
-    // 反映していないため、再 preview 直前に最新値を取りに行く (stale 値再注入の
-    // 防止、codex arch review blocking #2 反映)。fetch 失敗時は state 値を fallback。
-    let blockPlacementsForPreview = state.blockPlacements;
-    if (state.documentId) {
-      const fresh = await getDocument(state.documentId);
-      if (fresh.success && fresh.data) {
-        blockPlacementsForPreview = fresh.data.blockPlacements;
+      // v1.0.3: 保存済み書類は preview の inline 配置変更 UI で blockPlacements が
+      // 即時 AsyncStorage に保存される。preview から戻った後の edit state は本値を
+      // 反映していないため、再 preview 直前に helper 経由で最新値を取りに行く
+      // (stale 値再注入の防止、codex arch review blocking #2 反映)。
+      const blockPlacementsForPreview = await resolveFreshBlockPlacements(
+        state.documentId,
+        state.blockPlacements,
+        { getDocument }
+      );
+      // codex iter2 blocking 反映: await 中に screen unmount したら古い callback
+      // が router.push してしまう race を防ぐ。stale な navigation を完全 abort。
+      if (!isMountedRef.current) return;
+
+      const previewDocument: Partial<Document> = {
+        id: state.documentId || '',
+        documentNo: state.documentNo || '',
+        type: state.values.type,
+        status: state.status || 'draft',
+        clientName: state.values.clientName,
+        clientAddress: state.values.clientAddress || null,
+        subject: state.values.subject || null,
+        issueDate: state.values.issueDate,
+        validUntil: state.values.validUntil || null,
+        dueDate: state.values.dueDate || null,
+        paidAt: state.values.paidAt || null,
+        lineItems: state.lineItems,
+        carriedForwardAmount,
+        notes: state.values.notes || null,
+        issuerSnapshot: state.issuerSnapshot ?? {
+          companyName: null,
+          representativeName: null,
+          address: null,
+          phone: null,
+          fax: null,
+          sealImageBase64: null,
+          contactPerson: null,
+          email: null,
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
+        // preview に伝播させる。これがないと保存済み override が preview で
+        // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
+        // v1.0.3: 保存済み書類では fresh fetch 経由で最新値を採用 (上記参照)。
+        blockPlacements: blockPlacementsForPreview,
+      };
+
+      // codex iter2 blocking 反映: build 中の同期処理でも mount 状態を最終確認。
+      if (!isMountedRef.current) return;
+
+      // Navigate to preview with the document data
+      router.push({
+        pathname: '/document/preview',
+        params: { previewData: JSON.stringify(previewDocument) },
+      });
+    } finally {
+      isPreparingPreviewRef.current = false;
+      if (isMountedRef.current) {
+        setIsPreparingPreview(false);
       }
     }
-
-    const previewDocument: Partial<Document> = {
-      id: state.documentId || '',
-      documentNo: state.documentNo || '',
-      type: state.values.type,
-      status: state.status || 'draft',
-      clientName: state.values.clientName,
-      clientAddress: state.values.clientAddress || null,
-      subject: state.values.subject || null,
-      issueDate: state.values.issueDate,
-      validUntil: state.values.validUntil || null,
-      dueDate: state.values.dueDate || null,
-      paidAt: state.values.paidAt || null,
-      lineItems: state.lineItems,
-      carriedForwardAmount,
-      notes: state.values.notes || null,
-      issuerSnapshot: state.issuerSnapshot ?? {
-        companyName: null,
-        representativeName: null,
-        address: null,
-        phone: null,
-        fax: null,
-        sealImageBase64: null,
-        contactPerson: null,
-        email: null,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      // SPEC §3.2 / §7.1: edit screen state に保持されている blockPlacements を
-      // preview に伝播させる。これがないと保存済み override が preview で
-      // template default に戻ってしまう (codex P3 final review iter1 blocking 修正)。
-      // v1.0.3: 保存済み書類では fresh fetch 経由で最新値を採用 (上記参照)。
-      blockPlacements: blockPlacementsForPreview,
-    };
-
-    // Navigate to preview with the document data
-    router.push({
-      pathname: '/document/preview',
-      params: { previewData: JSON.stringify(previewDocument) },
-    });
   }, [state.documentId, state.documentNo, state.values, state.status, state.lineItems, state.issuerSnapshot, state.blockPlacements]);
 
   // Handle save as draft (existing save behavior)
@@ -659,7 +690,7 @@ export default function DocumentEditScreen() {
         isDirty={state.isDirty}
         isNewDocument={isNewDocument}
         currentStatus={state.status}
-        isSaving={state.isSaving || isPublishing}
+        isSaving={state.isSaving || isPublishing || isPreparingPreview}
         onPreview={handlePreview}
         onSaveDraft={handleSaveDraft}
         onPublishPdf={handlePublishPdf}

@@ -17,6 +17,7 @@ import {
   performPreviewShareConfirm,
   buildUpdatedPlacements,
   applyPlacementUpdate,
+  resolveFreshBlockPlacements,
 } from '@/components/document/edit/blockPlacementModalHelpers';
 import type { DocumentWithTotals, SensitiveIssuerSnapshot } from '@/types/document';
 import { TEMPLATE_DEFAULT_BLOCK_PLACEMENTS } from '@/pdf/blockPlacementDefaults';
@@ -438,6 +439,72 @@ describe('applyPlacementUpdate (v1.0.3)', () => {
       success: false,
       errorMessage: '保存に失敗しました',
     });
+  });
+});
+
+// === resolveFreshBlockPlacements (v1.0.3 navigation freshness) ===
+
+describe('resolveFreshBlockPlacements (v1.0.3)', () => {
+  it('documentId null → fallback (新規未保存書類、AsyncStorage 読まない)', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn();
+    const result = await resolveFreshBlockPlacements(null, fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fallback);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('documentId set + getDocument success → fresh.data.blockPlacements を返す (再 preview で inline UI 更新を反映)', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const fresh: BlockPlacements = { bankAccount: 'bottom-right', remarks: 'hidden' };
+    const mockGet = jest.fn().mockResolvedValue({
+      success: true,
+      data: { blockPlacements: fresh },
+    });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fresh);
+    expect(mockGet).toHaveBeenCalledWith('doc-1');
+  });
+
+  it('documentId set + getDocument success + null blockPlacements → null pass-through', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn().mockResolvedValue({
+      success: true,
+      data: { blockPlacements: null },
+    });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('documentId set + getDocument failure → fallback (defensive、AsyncStorage 障害時)', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn().mockResolvedValue({ success: false });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fallback);
+  });
+
+  it('documentId set + getDocument data null → fallback', async () => {
+    const fallback: BlockPlacements = { bankAccount: 'top-left' };
+    const mockGet = jest.fn().mockResolvedValue({ success: true, data: null });
+    const result = await resolveFreshBlockPlacements('doc-1', fallback, {
+      getDocument: mockGet,
+    });
+    expect(result).toEqual(fallback);
+  });
+
+  it('null fallback + null documentId → null (deeply default state)', async () => {
+    const mockGet = jest.fn();
+    const result = await resolveFreshBlockPlacements(null, null, {
+      getDocument: mockGet,
+    });
+    expect(result).toBeNull();
   });
 });
 
