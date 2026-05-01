@@ -14,7 +14,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,7 +23,7 @@ import { generateFilenameTitle, toggleOrientation } from '@/pdf/pdfTemplateServi
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { TemplatePickerModal } from '@/components/document/TemplatePickerModal';
-import { BlockPlacementModal } from '@/components/document/edit';
+import { BlockPlacementInlineControls } from '@/components/document/BlockPlacementInlineControls';
 import { performPreviewShareConfirm } from '@/components/document/edit/blockPlacementModalHelpers';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { validatePreviewDocument } from '@/utils/previewDataValidator';
@@ -85,12 +85,11 @@ export default function DocumentPreviewScreen() {
   const [filenameModalVisible, setFilenameModalVisible] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  // SPEC §6.2 「見た目を整える」モーダル (BlockPlacementModal 再利用、SPEC §6.7 の
-  // entry point は書類編集画面と preview 画面の両方)。未保存 preview では disabled。
-  const [blockPlacementModalVisible, setBlockPlacementModalVisible] = useState(false);
-  // modal の onUpdated コールバックで永続保存後の最新値を local state に反映し、
-  // 次の hook 再描画が始まる前にプレビューへ即時反映する (templateIdOverride と同 pattern)。
-  // undefined = caller override 不在 → hook が doc.blockPlacements にフォールバック
+  // v1.0.3: BlockPlacementInlineControls の onUpdated コールバックで永続保存後の
+  // 最新値を local state に反映し、即時プレビュー更新する (templateIdOverride と同 pattern)。
+  // undefined = caller override 不在 → hook が doc.blockPlacements にフォールバック。
+  // v1.0.2 までは BlockPlacementModal 経由だったが、modal 廃止して inline 統合に変更
+  // (Yuma フィードバック「移動と確認を分ける UX がめんどくさい」、2026-05-01)。
   const [blockPlacementsOverride, setBlockPlacementsOverride] = useState<
     BlockPlacements | null | undefined
   >(undefined);
@@ -238,8 +237,12 @@ export default function DocumentPreviewScreen() {
         allowUniversalAccessFromFileURLs={false}
       />
 
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
+      {/* Action Buttons (scrollable to fit inline placement controls on small screens) */}
+      <ScrollView
+        style={styles.buttonContainer}
+        contentContainerStyle={styles.buttonContainerContent}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Preview mode notice */}
         {isPreviewMode && (
           <View style={styles.previewNotice}>
@@ -279,19 +282,21 @@ export default function DocumentPreviewScreen() {
           <Text style={styles.stylePickerButtonText}>他のスタイルを試す</Text>
         </Pressable>
 
-        {/* SPEC §6.7 「見た目を整える」エントリポイント (preview 画面)。
+        {/* v1.0.3 inline 配置変更 UI (BlockPlacementModal の置き換え)。
             未保存 preview (isPreviewMode) では documentId 無いため非表示
             (SPEC §6.7.1: 新規未保存書類では使えない)。 */}
         {!isPreviewMode && resolvedDocumentWithTotals && (
-          <Pressable
-            style={styles.stylePickerButton}
-            onPress={() => setBlockPlacementModalVisible(true)}
-            accessibilityLabel="見た目を整える"
-            accessibilityRole="button"
-          >
-            <Ionicons name="grid-outline" size={20} color="#007AFF" />
-            <Text style={styles.stylePickerButtonText}>見た目を整える</Text>
-          </Pressable>
+          <BlockPlacementInlineControls
+            documentId={resolvedDocumentWithTotals.id}
+            currentPlacements={
+              blockPlacementsOverride !== undefined
+                ? blockPlacementsOverride
+                : resolvedDocumentWithTotals.blockPlacements
+            }
+            resolvedTemplateId={resolvedTemplateId}
+            onUpdated={setBlockPlacementsOverride}
+            testID="preview-block-placement-controls"
+          />
         )}
 
         {/* PDF Error Display - only show when not in preview mode */}
@@ -329,7 +334,7 @@ export default function DocumentPreviewScreen() {
             {isPreviewMode ? '編集画面に戻る' : '編集に戻る'}
           </Text>
         </Pressable>
-      </View>
+      </ScrollView>
 
       {/* Filename Edit Modal (M19) */}
       <FilenameEditModal
@@ -351,23 +356,6 @@ export default function DocumentPreviewScreen() {
         testID="template-picker-modal"
       />
 
-      {/* SPEC §6.2 「見た目を整える」モーダル — preview 画面のエントリポイント。
-          isPreviewMode (未保存) では documentId なしで render しない。
-          modal の onUpdated で local override に反映 → 即時プレビュー更新。 */}
-      {!isPreviewMode && resolvedDocumentWithTotals && (
-        <BlockPlacementModal
-          visible={blockPlacementModalVisible}
-          documentId={resolvedDocumentWithTotals.id}
-          currentPlacements={
-            blockPlacementsOverride !== undefined
-              ? blockPlacementsOverride
-              : resolvedDocumentWithTotals.blockPlacements
-          }
-          onClose={() => setBlockPlacementModalVisible(false)}
-          onUpdated={setBlockPlacementsOverride}
-          testID="preview-block-placement-modal"
-        />
-      )}
     </View>
   );
 }
@@ -400,10 +388,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   buttonContainer: {
-    padding: 16,
+    flexGrow: 0,
+    flexShrink: 1,
+    maxHeight: '50%',
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+  },
+  buttonContainerContent: {
+    padding: 16,
   },
   previewNotice: {
     backgroundColor: '#fff3cd',
