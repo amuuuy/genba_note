@@ -23,6 +23,7 @@ import { generateFilenameTitle, toggleOrientation } from '@/pdf/pdfTemplateServi
 import { generateAndSharePdf } from '@/pdf/pdfGenerationService';
 import { FilenameEditModal } from '@/components/document/FilenameEditModal';
 import { TemplatePickerModal } from '@/components/document/TemplatePickerModal';
+import { BlockPlacementModal } from '@/components/document/edit';
 import { getPdfErrorMessage } from '@/constants/errorMessages';
 import { validatePreviewDocument } from '@/utils/previewDataValidator';
 import { FIT_TO_SCREEN_SCRIPT } from '@/utils/previewHtmlSecurity';
@@ -31,6 +32,7 @@ import {
   type DocumentPreviewSource,
 } from '@/hooks/useDocumentPreviewHtml';
 import type { DocumentTemplateId, PreviewOrientation, SealSize } from '@/types/settings';
+import type { BlockPlacements } from '@/types/blockPlacement';
 
 export default function DocumentPreviewScreen() {
   const { id, previewData } = useLocalSearchParams<{ id?: string; previewData?: string }>();
@@ -82,6 +84,15 @@ export default function DocumentPreviewScreen() {
   const [filenameModalVisible, setFilenameModalVisible] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  // SPEC §6.2 「見た目を整える」モーダル (BlockPlacementModal 再利用、SPEC §6.7 の
+  // entry point は書類編集画面と preview 画面の両方)。未保存 preview では disabled。
+  const [blockPlacementModalVisible, setBlockPlacementModalVisible] = useState(false);
+  // modal の onUpdated コールバックで永続保存後の最新値を local state に反映し、
+  // 次の hook 再描画が始まる前にプレビューへ即時反映する (templateIdOverride と同 pattern)。
+  // undefined = caller override 不在 → hook が doc.blockPlacements にフォールバック
+  const [blockPlacementsOverride, setBlockPlacementsOverride] = useState<
+    BlockPlacements | null | undefined
+  >(undefined);
 
   // Run hook only when source is valid. When invalid, we still need to call
   // hooks unconditionally — pass a sentinel and rely on render branch below.
@@ -89,6 +100,7 @@ export default function DocumentPreviewScreen() {
     source: sourceResolution.source ?? { kind: 'documentId', documentId: '__invalid__' },
     templateIdOverride,
     sealSizeOverride,
+    blockPlacementsOverride,
     orientation,
   });
 
@@ -256,6 +268,21 @@ export default function DocumentPreviewScreen() {
           <Text style={styles.stylePickerButtonText}>他のスタイルを試す</Text>
         </Pressable>
 
+        {/* SPEC §6.7 「見た目を整える」エントリポイント (preview 画面)。
+            未保存 preview (isPreviewMode) では documentId 無いため非表示
+            (SPEC §6.7.1: 新規未保存書類では使えない)。 */}
+        {!isPreviewMode && resolvedDocumentWithTotals && (
+          <Pressable
+            style={styles.stylePickerButton}
+            onPress={() => setBlockPlacementModalVisible(true)}
+            accessibilityLabel="見た目を整える"
+            accessibilityRole="button"
+          >
+            <Ionicons name="grid-outline" size={20} color="#007AFF" />
+            <Text style={styles.stylePickerButtonText}>見た目を整える</Text>
+          </Pressable>
+        )}
+
         {/* PDF Error Display - only show when not in preview mode */}
         {!isPreviewMode && pdfError && (
           <View style={styles.pdfErrorContainer}>
@@ -312,6 +339,24 @@ export default function DocumentPreviewScreen() {
         onSealSizeSelect={handleSealSizeSelect}
         testID="template-picker-modal"
       />
+
+      {/* SPEC §6.2 「見た目を整える」モーダル — preview 画面のエントリポイント。
+          isPreviewMode (未保存) では documentId なしで render しない。
+          modal の onUpdated で local override に反映 → 即時プレビュー更新。 */}
+      {!isPreviewMode && resolvedDocumentWithTotals && (
+        <BlockPlacementModal
+          visible={blockPlacementModalVisible}
+          documentId={resolvedDocumentWithTotals.id}
+          currentPlacements={
+            blockPlacementsOverride !== undefined
+              ? blockPlacementsOverride
+              : resolvedDocumentWithTotals.blockPlacements
+          }
+          onClose={() => setBlockPlacementModalVisible(false)}
+          onUpdated={setBlockPlacementsOverride}
+          testID="preview-block-placement-modal"
+        />
+      )}
     </View>
   );
 }
