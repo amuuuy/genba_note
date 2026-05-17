@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.kenjimu.genbanote",
       "buildNumber": "10",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "ja",
+        "CFBundleLocalizations": ["ja"]
       }
     },
     "android": {
