@@ -16,6 +16,7 @@ import { v7AddPdfCustomizationMigration } from './v7-add-pdf-customization';
 import { v8AddCalendarEventsMigration } from './v8-add-calendar-events';
 import { v9AddEmailFieldMigration } from './v9-add-email-field';
 import { v10AddBlockPlacementsMigration } from './v10-add-block-placements';
+import { v11AddSpecFieldMigration } from './v11-add-spec-field';
 
 // Register all migrations
 registerMigration(v1InitialMigration);
@@ -28,6 +29,7 @@ registerMigration(v7AddPdfCustomizationMigration);
 registerMigration(v8AddCalendarEventsMigration);
 registerMigration(v9AddEmailFieldMigration);
 registerMigration(v10AddBlockPlacementsMigration);
+registerMigration(v11AddSpecFieldMigration);
 
 // Re-export for direct access if needed
 export {
@@ -41,4 +43,5 @@ export {
   v8AddCalendarEventsMigration,
   v9AddEmailFieldMigration,
   v10AddBlockPlacementsMigration,
+  v11AddSpecFieldMigration,
 };

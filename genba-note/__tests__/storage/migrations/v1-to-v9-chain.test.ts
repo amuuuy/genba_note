@@ -28,6 +28,7 @@ import { v7AddPdfCustomizationMigration } from '@/storage/migrations/v7-add-pdf-
 import { v8AddCalendarEventsMigration } from '@/storage/migrations/v8-add-calendar-events';
 import { v9AddEmailFieldMigration } from '@/storage/migrations/v9-add-email-field';
 import { v10AddBlockPlacementsMigration } from '@/storage/migrations/v10-add-block-placements';
+import { v11AddSpecFieldMigration } from '@/storage/migrations/v11-add-spec-field';
 
 // Map-based AsyncStorage mock
 const store: Record<string, string> = {};
@@ -90,6 +91,7 @@ function registerAllMigrations() {
   registerMigration(v8AddCalendarEventsMigration);
   registerMigration(v9AddEmailFieldMigration);
   registerMigration(v10AddBlockPlacementsMigration);
+  registerMigration(v11AddSpecFieldMigration);
 }
 
 describe('v1→v10 chain migration', () => {
@@ -106,27 +108,27 @@ describe('v1→v10 chain migration', () => {
     jest.clearAllMocks();
   });
 
-  it('should have CURRENT_SCHEMA_VERSION = 10', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(10);
+  it('should have CURRENT_SCHEMA_VERSION = 11', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(11);
   });
 
-  describe('fresh install (v0→v10)', () => {
-    it('should migrate from v0 to v10 successfully', async () => {
+  describe('fresh install (v0→v11)', () => {
+    it('should migrate from v0 to v11 successfully', async () => {
       // Empty store — v0 state
       const result = await runMigrations();
 
       expect(result.success).toBe(true);
       expect(result.startVersion).toBe(0);
-      expect(result.endVersion).toBe(10);
-      expect(result.migrationsRun).toBe(10);
+      expect(result.endVersion).toBe(11);
+      expect(result.migrationsRun).toBe(11);
       expect(result.readOnlyMode).toBe(false);
     });
 
-    it('should update schema version to 10', async () => {
+    it('should update schema version to 11', async () => {
       await runMigrations();
 
       const version = parseInt(store[STORAGE_KEYS.SCHEMA_VERSION], 10);
-      expect(version).toBe(10);
+      expect(version).toBe(11);
     });
 
     it('should initialize settings with all fields from v1 through v9', async () => {
@@ -243,13 +245,13 @@ describe('v1→v10 chain migration', () => {
       store[STORAGE_KEYS.UNIT_PRICES] = JSON.stringify([]);
     });
 
-    it('should migrate from v1 to v10 successfully', async () => {
+    it('should migrate from v1 to v11 successfully', async () => {
       const result = await runMigrations();
 
       expect(result.success).toBe(true);
       expect(result.startVersion).toBe(1);
-      expect(result.endVersion).toBe(10);
-      expect(result.migrationsRun).toBe(9); // v2 through v10
+      expect(result.endVersion).toBe(11);
+      expect(result.migrationsRun).toBe(10); // v2 through v11
       expect(result.readOnlyMode).toBe(false);
     });
 
@@ -340,11 +342,11 @@ describe('v1→v10 chain migration', () => {
       }
     });
 
-    it('should set final schema version to 10', async () => {
+    it('should set final schema version to 11', async () => {
       await runMigrations();
 
       const version = parseInt(store[STORAGE_KEYS.SCHEMA_VERSION], 10);
-      expect(version).toBe(10);
+      expect(version).toBe(11);
     });
 
     it('should map SIMPLE invoiceTemplateType correctly through chain', async () => {

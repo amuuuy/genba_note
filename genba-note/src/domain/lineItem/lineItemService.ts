@@ -29,6 +29,8 @@ export interface LineItemInput {
   name: string;
   quantityMilli: number;
   unit: string;
+  /** Specification / remarks (optional): e.g. 't=50'. null/undefined = unset */
+  spec?: string | null;
   unitPrice: number;
   taxRate: TaxRate;
 }
@@ -73,6 +75,7 @@ export function createLineItem(
     name: input.name,
     quantityMilli: input.quantityMilli,
     unit: input.unit,
+    spec: input.spec ?? null,
     unitPrice: input.unitPrice,
     taxRate: input.taxRate,
   };

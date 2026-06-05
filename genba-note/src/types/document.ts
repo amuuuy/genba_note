@@ -50,6 +50,15 @@ export interface LineItem {
   unit: string;
 
   /**
+   * Specification / remarks (optional): e.g. 't=50', 厚み, 寸法.
+   * null represents unset (never empty string).
+   * Optional property for backward compatibility with documents created
+   * before this field existed; migration v11 backfills existing items to null
+   * and createLineItem always sets it, so persisted items always carry spec.
+   */
+  spec?: string | null;
+
+  /**
    * Unit price in yen (integer, required)
    * Range: 0 to 99,999,999
    */

@@ -212,6 +212,48 @@ describe('Preview Security', () => {
       expect(result!.lineItems[0].taxRate).toBe(0);
     });
 
+    it('preserves a string spec value', () => {
+      const doc = createTestDocument();
+      (doc.lineItems[0] as unknown as Record<string, unknown>).spec = 't=50';
+      const result = validatePreviewDocument(doc);
+      expect(result).not.toBeNull();
+      expect(result!.lineItems[0].spec).toBe('t=50');
+    });
+
+    it('normalises a non-string spec to null', () => {
+      const doc = createTestDocument();
+      (doc.lineItems[0] as unknown as Record<string, unknown>).spec = 123;
+      const result = validatePreviewDocument(doc);
+      expect(result).not.toBeNull();
+      expect(result!.lineItems[0].spec).toBeNull();
+    });
+
+    it('normalises an empty-string spec to null', () => {
+      const doc = createTestDocument();
+      (doc.lineItems[0] as unknown as Record<string, unknown>).spec = '';
+      const result = validatePreviewDocument(doc);
+      expect(result).not.toBeNull();
+      expect(result!.lineItems[0].spec).toBeNull();
+    });
+
+    it('normalises a whitespace-only spec to null and trims a real value', () => {
+      const doc = createTestDocument();
+      (doc.lineItems[0] as unknown as Record<string, unknown>).spec = '   ';
+      expect(validatePreviewDocument(doc)!.lineItems[0].spec).toBeNull();
+
+      const doc2 = createTestDocument();
+      (doc2.lineItems[0] as unknown as Record<string, unknown>).spec = '  t=50  ';
+      expect(validatePreviewDocument(doc2)!.lineItems[0].spec).toBe('t=50');
+    });
+
+    it('normalises a missing spec to null', () => {
+      const doc = createTestDocument();
+      delete (doc.lineItems[0] as unknown as Record<string, unknown>).spec;
+      const result = validatePreviewDocument(doc);
+      expect(result).not.toBeNull();
+      expect(result!.lineItems[0].spec).toBeNull();
+    });
+
     it('normalises invalid carriedForwardAmount to null', () => {
       const doc = createTestDocument();
       (doc as unknown as Record<string, unknown>).carriedForwardAmount = 'bad';

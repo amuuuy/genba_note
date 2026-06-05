@@ -227,11 +227,15 @@ function getConstructionCss(sealSizePx: number): string {
       height: 28px;
     }
 
-    .construction-table .col-name { width: 50%; }
+    .construction-table .col-name { width: 28%; }
+    .construction-table .col-spec { width: 16%; }
+    .construction-table .col-qty { width: 9%; text-align: right; }
+    .construction-table .col-unit { width: 9%; text-align: center; }
     .construction-table .col-price { width: 17%; text-align: right; }
-    .construction-table .col-qty { width: 13%; text-align: right; }
-    .construction-table .col-total { width: 20%; text-align: right; }
+    .construction-table .col-total { width: 21%; text-align: right; }
 
+    .construction-table .item-spec { text-align: left; }
+    .construction-table .item-unit { text-align: center; }
     .construction-table .item-price,
     .construction-table .item-qty,
     .construction-table .item-total { text-align: right; }
@@ -429,8 +433,10 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     return `
         <tr>
           <td class="item-name">${escapeHtml(item.name)}</td>
-          <td class="item-price">${formatCurrency(item.unitPrice)}円</td>
+          <td class="item-spec">${escapeHtml(item.spec ?? '')}</td>
           <td class="item-qty">${formatQuantity(item.quantityMilli)}</td>
+          <td class="item-unit">${escapeHtml(item.unit)}</td>
+          <td class="item-price">${formatCurrency(item.unitPrice)}円</td>
           <td class="item-total">${formatCurrency(item.subtotal)}円</td>
         </tr>`;
   });
@@ -444,6 +450,8 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
           <td>&nbsp;</td>
           <td>&nbsp;</td>
           <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
         </tr>`;
   });
 
@@ -451,9 +459,11 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     <table class="construction-table">
       <thead>
         <tr>
-          <th class="col-name">品番・品名</th>
-          <th class="col-price">単価</th>
+          <th class="col-name">名称</th>
+          <th class="col-spec">仕様</th>
           <th class="col-qty">数量</th>
+          <th class="col-unit">単位</th>
+          <th class="col-price">単価</th>
           <th class="col-total">金額</th>
         </tr>
       </thead>
