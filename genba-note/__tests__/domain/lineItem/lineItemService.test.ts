@@ -41,6 +41,35 @@ describe('lineItemService', () => {
       expect(result.data!.taxRate).toBe(10);
     });
 
+    it('should set spec to null when not provided', () => {
+      const input: LineItemInput = {
+        name: 'Test Item',
+        quantityMilli: 1000,
+        unit: '式',
+        unitPrice: 10000,
+        taxRate: 10,
+      };
+      const result = createLineItem(input);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.spec).toBeNull();
+    });
+
+    it('should preserve a provided spec value', () => {
+      const input: LineItemInput = {
+        name: 'Test Item',
+        quantityMilli: 1000,
+        unit: '式',
+        spec: 't=50',
+        unitPrice: 10000,
+        taxRate: 10,
+      };
+      const result = createLineItem(input);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.spec).toBe('t=50');
+    });
+
     it('should return errors for empty name', () => {
       const input: LineItemInput = {
         name: '',
