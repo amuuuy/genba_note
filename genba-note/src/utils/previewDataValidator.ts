@@ -86,6 +86,12 @@ function normaliseLineItem(item: unknown): LineItem | null {
     id: typeof li.id === 'string' ? li.id : '',
     name: typeof li.name === 'string' ? li.name : '',
     unit: typeof li.unit === 'string' ? li.unit : '',
+    // Normalise like the form layer (lineItemFormUtils.normaliseSpecInput):
+    // trim and treat an empty result as null, per the LineItem unset = null contract.
+    spec:
+      typeof li.spec === 'string' && li.spec.trim() !== ''
+        ? li.spec.trim()
+        : null,
     quantityMilli: finiteOr(li.quantityMilli, 0),
     unitPrice: finiteOr(li.unitPrice, 0),
     taxRate: (VALID_TAX_RATES.includes(tr) ? tr : 10) as TaxRate,

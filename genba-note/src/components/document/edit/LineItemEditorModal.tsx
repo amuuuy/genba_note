@@ -21,6 +21,7 @@ import type { LineItem, TaxRate } from '@/types/document';
 import type { LineItemInput } from '@/domain/lineItem/lineItemService';
 import { toQuantityMilli, fromQuantityMilli } from '@/domain/lineItem';
 import { FormInput } from '@/components/common';
+import { normaliseSpecInput, specToFormValue } from './lineItemFormUtils';
 
 export interface LineItemEditorModalProps {
   /** Whether the modal is visible */
@@ -41,6 +42,7 @@ export interface LineItemEditorModalProps {
 
 interface FormState {
   name: string;
+  spec: string;
   quantity: string;
   unit: string;
   unitPrice: string;
@@ -101,6 +103,7 @@ export const LineItemEditorModal: React.FC<LineItemEditorModalProps> = ({
 
   const [form, setForm] = useState<FormState>({
     name: '',
+    spec: '',
     quantity: '1',
     unit: '式',
     unitPrice: '',
@@ -115,6 +118,7 @@ export const LineItemEditorModal: React.FC<LineItemEditorModalProps> = ({
       if (lineItem) {
         setForm({
           name: lineItem.name,
+          spec: specToFormValue(lineItem.spec),
           quantity: fromQuantityMilli(lineItem.quantityMilli).toString(),
           unit: lineItem.unit,
           unitPrice: lineItem.unitPrice.toString(),
@@ -124,6 +128,7 @@ export const LineItemEditorModal: React.FC<LineItemEditorModalProps> = ({
         // Pre-populate from research result (new item with initial values)
         setForm({
           name: initialInput.name,
+          spec: specToFormValue(initialInput.spec),
           quantity: fromQuantityMilli(initialInput.quantityMilli).toString(),
           unit: initialInput.unit,
           unitPrice: initialInput.unitPrice.toString(),
@@ -132,6 +137,7 @@ export const LineItemEditorModal: React.FC<LineItemEditorModalProps> = ({
       } else {
         setForm({
           name: '',
+          spec: '',
           quantity: '1',
           unit: '式',
           unitPrice: '',
@@ -163,6 +169,7 @@ export const LineItemEditorModal: React.FC<LineItemEditorModalProps> = ({
 
     const input: LineItemInput = {
       name: form.name.trim(),
+      spec: normaliseSpecInput(form.spec),
       quantityMilli: toQuantityMilli(quantity),
       unit: form.unit.trim(),
       unitPrice,
@@ -238,6 +245,14 @@ export const LineItemEditorModal: React.FC<LineItemEditorModalProps> = ({
             required
             placeholder="例: 外壁塗装工事"
             testID="line-item-name"
+          />
+
+          <FormInput
+            label="仕様（任意）"
+            value={form.spec}
+            onChangeText={(text) => updateField('spec', text)}
+            placeholder="例: t=50, 厚み 等"
+            testID="line-item-spec"
           />
 
           <FormInput

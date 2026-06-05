@@ -12,6 +12,7 @@ import {
   createTestDocumentWithTotals,
   createTestSensitiveSnapshot,
   createTestIssuerSnapshot,
+  createTestLineItem,
 } from './helpers';
 
 const defaultOptions = {
@@ -87,26 +88,83 @@ describe('CONSTRUCTION template', () => {
     });
   });
 
-  describe('4-column table', () => {
-    it('has 品番・品名, 単価, 数量, 金額 columns', () => {
+  describe('6-column table (名称/仕様/数量/単位/単価/金額)', () => {
+    it('has 名称, 仕様, 数量, 単位, 単価, 金額 column headers', () => {
       const doc = createTestDocumentWithTotals({ type: 'estimate' });
       const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
-      expect(html).toContain('品番・品名');
-      expect(html).toContain('単価');
-      expect(html).toContain('数量');
-      expect(html).toContain('金額');
+      expect(html).toMatch(/<th[^>]*>名称/);
+      expect(html).toMatch(/<th[^>]*>仕様/);
+      expect(html).toMatch(/<th[^>]*>数量/);
+      expect(html).toMatch(/<th[^>]*>単位/);
+      expect(html).toMatch(/<th[^>]*>単価/);
+      expect(html).toMatch(/<th[^>]*>金額/);
     });
 
-    it('does not have 税率 or 単位 column headers', () => {
+    it('does not have 税率 column header but has 単位 and 仕様', () => {
       const doc = createTestDocumentWithTotals({ type: 'estimate' });
       const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
-      // Ensure no tax rate or unit column headers (these are specific to other templates)
+      // 税率 column belongs to other templates and stays absent here.
       expect(html).not.toMatch(/<th[^>]*>税率/);
-      expect(html).not.toMatch(/<th[^>]*>単位/);
+      // 単位 and 仕様 are the newly added columns.
+      expect(html).toMatch(/<th[^>]*>単位/);
+      expect(html).toMatch(/<th[^>]*>仕様/);
+    });
+
+    it('renders header columns in mock order: 名称→仕様→数量→単位→単価→金額', () => {
+      const doc = createTestDocumentWithTotals({ type: 'estimate' });
+      const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
+      // Scope to <thead> only: 金額 also appears in 御見積金額/合計金額 elsewhere.
+      const thead = html.match(/<thead>([\s\S]*?)<\/thead>/);
+      expect(thead).toBeTruthy();
+      const headers = Array.from(
+        thead![1].matchAll(/<th[^>]*>([^<]*)<\/th>/g)
+      ).map((m) => m[1].trim());
+      expect(headers).toEqual(['名称', '仕様', '数量', '単位', '単価', '金額']);
+    });
+
+    it('renders the spec value when present', () => {
+      const doc = createTestDocumentWithTotals({
+        type: 'estimate',
+        lineItems: [createTestLineItem({ name: '斫り工事', spec: 't=50' })],
+      });
+      const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
+      expect(html).toContain('t=50');
+    });
+
+    it('renders an empty spec cell without error when spec is null', () => {
+      const doc = createTestDocumentWithTotals({
+        type: 'estimate',
+        lineItems: [createTestLineItem({ name: '墨出し', spec: null })],
+      });
+      const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
+      expect(html).toContain('墨出し');
+      // Spec column header is still present even when the value is empty.
+      expect(html).toMatch(/<th[^>]*>仕様/);
+    });
+
+    it('renders the unit value in its own column', () => {
+      const doc = createTestDocumentWithTotals({
+        type: 'estimate',
+        lineItems: [createTestLineItem({ name: 'カッター入れ', unit: 'm' })],
+      });
+      const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
+      expect(html).toMatch(/<td[^>]*class="[^"]*item-unit[^"]*"[^>]*>m<\/td>/);
+    });
+
+    it('HTML-escapes a malicious spec value (XSS safety)', () => {
+      const doc = createTestDocumentWithTotals({
+        type: 'estimate',
+        lineItems: [
+          createTestLineItem({ name: '工事', spec: '<img src=x onerror=alert(1)>' }),
+        ],
+      });
+      const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
+      // Raw tag must not appear; escaped entities must be present instead.
+      expect(html).not.toContain('<img src=x onerror=alert(1)>');
+      expect(html).toContain('&lt;img');
     });
 
     it('fills empty rows up to minimum 8 total rows', () => {
-      // Create doc with 2 line items
       const doc = createTestDocumentWithTotals({ type: 'estimate' });
       const html = getTemplate('CONSTRUCTION')(doc, null, defaultOptions);
       // Count all <tr> in tbody (data rows + empty rows)
