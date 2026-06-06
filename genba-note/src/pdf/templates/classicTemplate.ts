@@ -238,31 +238,40 @@ function getClassicStyles(sealSizePx: number): string {
     }
 
     .classic-items-table .col-name {
-      width: 45%;
+      width: 28%;
+      text-align: left;
+    }
+
+    .classic-items-table .col-spec {
+      width: 16%;
       text-align: left;
     }
 
     .classic-items-table .col-qty {
-      width: 10%;
+      width: 9%;
       text-align: right;
     }
 
     .classic-items-table .col-unit {
-      width: 10%;
+      width: 9%;
       text-align: center;
     }
 
     .classic-items-table .col-price {
-      width: 15%;
+      width: 17%;
       text-align: right;
     }
 
     .classic-items-table .col-total {
-      width: 20%;
+      width: 21%;
       text-align: right;
     }
 
     .classic-items-table .item-name {
+      text-align: left;
+    }
+
+    .classic-items-table .item-spec {
       text-align: left;
     }
 
@@ -645,6 +654,7 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     return `
       <tr>
         <td class="item-name">${escapeHtml(item.name)}</td>
+        <td class="item-spec">${escapeHtml(item.spec ?? '')}</td>
         <td class="item-qty">${formatQuantity(item.quantityMilli)}</td>
         <td class="item-unit">${escapeHtml(item.unit)}</td>
         <td class="item-price">${formatCurrency(item.unitPrice)}</td>
@@ -657,7 +667,8 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     <table class="classic-items-table">
       <thead>
         <tr>
-          <th class="col-name">摘要</th>
+          <th class="col-name">名称</th>
+          <th class="col-spec">仕様</th>
           <th class="col-qty">数量</th>
           <th class="col-unit">単位</th>
           <th class="col-price">単価（税抜）</th>
@@ -667,7 +678,7 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
       <tbody>
         ${rows.join('')}
         <tr class="blank-row">
-          <td colspan="5">以下余白</td>
+          <td colspan="6">以下余白</td>
         </tr>
       </tbody>
     </table>

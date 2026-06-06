@@ -244,6 +244,7 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     return `
         <tr>
           <td class="item-name">${escapeHtml(item.name)}</td>
+          <td class="item-spec">${escapeHtml(item.spec ?? '')}</td>
           <td class="item-qty">${formatQuantity(item.quantityMilli)}</td>
           <td class="item-unit">${escapeHtml(item.unit)}</td>
           <td class="item-price">${formatCurrency(item.unitPrice)}円</td>
@@ -255,7 +256,8 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     <table class="modern-items-table">
       <thead>
         <tr>
-          <th class="col-name">摘要</th>
+          <th class="col-name">名称</th>
+          <th class="col-spec">仕様</th>
           <th class="col-qty">数量</th>
           <th class="col-unit">単位</th>
           <th class="col-price">単価（税抜）</th>
@@ -571,13 +573,15 @@ function getModernCss(sealSizePx: number): string {
       background: #fff;
     }
 
-    .modern-items-table .col-name { width: 40%; text-align: left; }
-    .modern-items-table .col-qty { width: 10%; text-align: right; }
-    .modern-items-table .col-unit { width: 10%; text-align: center; }
-    .modern-items-table .col-price { width: 18%; text-align: right; }
-    .modern-items-table .col-total { width: 22%; text-align: right; }
+    .modern-items-table .col-name { width: 28%; text-align: left; }
+    .modern-items-table .col-spec { width: 16%; text-align: left; }
+    .modern-items-table .col-qty { width: 9%; text-align: right; }
+    .modern-items-table .col-unit { width: 9%; text-align: center; }
+    .modern-items-table .col-price { width: 17%; text-align: right; }
+    .modern-items-table .col-total { width: 21%; text-align: right; }
 
     .modern-items-table .item-name { text-align: left; }
+    .modern-items-table .item-spec { text-align: left; }
     .modern-items-table .item-qty { text-align: right; }
     .modern-items-table .item-unit { text-align: center; }
     .modern-items-table .item-price { text-align: right; }

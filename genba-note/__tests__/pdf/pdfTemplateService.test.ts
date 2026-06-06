@@ -996,7 +996,8 @@ describe('pdfTemplateService', () => {
         const result = generateHtmlTemplate(input);
 
         expect(result.html).toContain('formal-items-table');
-        expect(result.html).toContain('摘要');
+        expect(result.html).toContain('名称');
+        expect(result.html).toContain('仕様');
         expect(result.html).toContain('数量');
         expect(result.html).toContain('単位');
         expect(result.html).toContain('単価');
