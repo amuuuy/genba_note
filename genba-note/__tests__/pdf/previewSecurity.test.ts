@@ -83,26 +83,89 @@ describe('Preview Security', () => {
   // --- FIT_TO_SCREEN_SCRIPT DOM behaviour (jsdom) ---
 
   describe('FIT_TO_SCREEN_SCRIPT (DOM)', () => {
-    it('applies transform scale when body is taller than viewport', () => {
-      // jsdom default window.innerHeight = 768
+    // Pin the viewport explicitly so expectations do not depend on jsdom defaults.
+    const VIEW_W = 1024;
+    const VIEW_H = 768;
+    const setViewport = (w: number, h: number) => {
+      Object.defineProperty(window, 'innerWidth', { value: w, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: h, configurable: true });
+    };
+    const setBody = (scrollWidth: number, scrollHeight: number) => {
+      Object.defineProperty(document.body, 'scrollWidth', { value: scrollWidth, configurable: true });
+      Object.defineProperty(document.body, 'scrollHeight', { value: scrollHeight, configurable: true });
+    };
+
+    beforeEach(() => setViewport(VIEW_W, VIEW_H));
+
+    it('height-only overflow: scales by height, keeps top center', () => {
       document.body.innerHTML = '<div class="document-container">content</div>';
-      // Simulate a tall body by overriding scrollHeight
-      Object.defineProperty(document.body, 'scrollHeight', { value: 1200, configurable: true });
+      setBody(500, 1200); // width fits, height overflows → height-bound
 
       // eslint-disable-next-line no-eval
       eval(FIT_TO_SCREEN_SCRIPT);
 
-      const expectedScale = 768 / 1200;
+      const expectedScale = VIEW_H / 1200;
       expect(document.body.style.transform).toBe(`scale(${expectedScale})`);
+      // Height-bound: centered preview preserved (no regression).
       expect(document.body.style.transformOrigin).toBe('top center');
       expect(document.body.style.overflow).toBe('hidden');
       expect(document.documentElement.style.overflow).toBe('hidden');
       expect(document.documentElement.style.height).toBe('100vh');
     });
 
+    it('width-only overflow: scales by width, anchors top left (no right-edge clip)', () => {
+      document.body.innerHTML = '<div class="document-container">wide</div>';
+      setBody(2048, 500); // width overflows, height fits → width-bound
+
+      // eslint-disable-next-line no-eval
+      eval(FIT_TO_SCREEN_SCRIPT);
+
+      const expectedScale = VIEW_W / 2048;
+      expect(document.body.style.transform).toBe(`scale(${expectedScale})`);
+      // Width-bound: left anchor so scaled width [0, viewW] is flush.
+      expect(document.body.style.transformOrigin).toBe('top left');
+      expect(document.body.style.overflow).toBe('hidden');
+    });
+
+    it('both overflow, width-bound: uses min scale and anchors top left', () => {
+      document.body.innerHTML = '<div class="document-container">big</div>';
+      setBody(2048, 1200); // scaleW = 1024/2048 = 0.5 < scaleH = 768/1200 = 0.64
+
+      // eslint-disable-next-line no-eval
+      eval(FIT_TO_SCREEN_SCRIPT);
+
+      const expectedScale = Math.min(VIEW_H / 1200, VIEW_W / 2048); // 0.5 (width-bound)
+      expect(document.body.style.transform).toBe(`scale(${expectedScale})`);
+      expect(document.body.style.transformOrigin).toBe('top left');
+    });
+
+    it('both overflow, height-bound but width also overflows: anchors top left (no right clip)', () => {
+      document.body.innerHTML = '<div class="document-container">tall</div>';
+      setBody(1100, 3000); // scaleH = 768/3000 = 0.256 < scaleW = 1024/1100 ≈ 0.93, but bodyW > viewW
+
+      // eslint-disable-next-line no-eval
+      eval(FIT_TO_SCREEN_SCRIPT);
+
+      const expectedScale = Math.min(VIEW_H / 3000, VIEW_W / 1100); // height-bound min
+      expect(document.body.style.transform).toBe(`scale(${expectedScale})`);
+      // Width still overflows the viewport → center origin would clip the right edge.
+      expect(document.body.style.transformOrigin).toBe('top left');
+    });
+
+    it('both overflow, equal scale (tie): anchors top left', () => {
+      document.body.innerHTML = '<div class="document-container">square</div>';
+      setBody(2048, 1536); // scaleW = 1024/2048 = 0.5 === scaleH = 768/1536 = 0.5
+
+      // eslint-disable-next-line no-eval
+      eval(FIT_TO_SCREEN_SCRIPT);
+
+      expect(document.body.style.transform).toBe('scale(0.5)');
+      expect(document.body.style.transformOrigin).toBe('top left');
+    });
+
     it('does NOT apply transform when body fits within viewport', () => {
       document.body.innerHTML = '<div>short</div>';
-      Object.defineProperty(document.body, 'scrollHeight', { value: 500, configurable: true });
+      setBody(500, 500);
       document.body.style.transform = '';
 
       // eslint-disable-next-line no-eval
@@ -113,7 +176,7 @@ describe('Preview Security', () => {
 
     it('returns true (WebView injectedJavaScript contract)', () => {
       document.body.innerHTML = '<div>content</div>';
-      Object.defineProperty(document.body, 'scrollHeight', { value: 500, configurable: true });
+      setBody(500, 500);
 
       // eslint-disable-next-line no-eval
       const ret = eval(FIT_TO_SCREEN_SCRIPT);

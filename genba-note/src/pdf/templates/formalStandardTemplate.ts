@@ -281,16 +281,18 @@ function getFormalStandardCss(sealSizePx: number): string {
       -webkit-print-color-adjust: exact;
     }
 
-    .formal-items-table .col-name { width: 45%; }
-    .formal-items-table .col-qty { width: 10%; text-align: right; }
-    .formal-items-table .col-unit { width: 10%; text-align: center; }
-    .formal-items-table .col-price { width: 15%; text-align: right; }
-    .formal-items-table .col-total { width: 20%; text-align: right; }
+    .formal-items-table .col-name { width: 28%; }
+    .formal-items-table .col-spec { width: 16%; text-align: left; }
+    .formal-items-table .col-qty { width: 9%; text-align: right; }
+    .formal-items-table .col-unit { width: 9%; text-align: center; }
+    .formal-items-table .col-price { width: 17%; text-align: right; }
+    .formal-items-table .col-total { width: 21%; text-align: right; }
 
     .formal-items-table .item-qty,
     .formal-items-table .item-price,
     .formal-items-table .item-total { text-align: right; }
     .formal-items-table .item-unit { text-align: center; }
+    .formal-items-table .item-spec { text-align: left; }
 
     /* === Totals section (right-aligned, dotted borders) === */
     .formal-totals-section {
@@ -660,6 +662,7 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     return `
         <tr>
           <td class="item-name">${escapeHtml(item.name)}</td>
+          <td class="item-spec">${escapeHtml(item.spec ?? '')}</td>
           <td class="item-qty">${formatQuantity(item.quantityMilli)}</td>
           <td class="item-unit">${escapeHtml(item.unit)}</td>
           <td class="item-price">${formatCurrency(item.unitPrice)}\u5186</td>
@@ -671,7 +674,8 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     <table class="formal-items-table">
       <thead>
         <tr>
-          <th class="col-name">\u6458\u8981</th>
+          <th class="col-name">\u540D\u79F0</th>
+          <th class="col-spec">\u4ED5\u69D8</th>
           <th class="col-qty">\u6570\u91CF</th>
           <th class="col-unit">\u5358\u4F4D</th>
           <th class="col-price">\u5358\u4FA1\uFF08\u7A0E\u629C\uFF09</th>
