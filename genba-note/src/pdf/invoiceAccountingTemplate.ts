@@ -404,7 +404,7 @@ function renderGrandTotalBlock(doc: DocumentWithTotals): string {
 
 /**
  * Render line items table
- * 明細テーブル: 摘要｜数量｜単位｜単価｜金額
+ * 明細テーブル: 名称｜仕様｜数量｜単位｜単価｜金額
  * 金額は数量×単価の計算結果を表示
  * 集計は renderGrandTotalBlock() で表示するため tfoot は含まない
  */
@@ -413,6 +413,7 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     return `
       <tr>
         <td class="item-name">${escapeHtml(item.name)}</td>
+        <td class="item-spec">${escapeHtml(item.spec ?? '')}</td>
         <td class="item-qty">${formatQuantity(item.quantityMilli)}</td>
         <td class="item-unit">${escapeHtml(item.unit)}</td>
         <td class="item-price">${formatCurrency(item.unitPrice)}</td>
@@ -425,7 +426,8 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     <table class="formal-items-table">
       <thead>
         <tr>
-          <th class="col-name">摘要</th>
+          <th class="col-name">名称</th>
+          <th class="col-spec">仕様</th>
           <th class="col-qty">数量</th>
           <th class="col-unit">単位</th>
           <th class="col-price">単価</th>
@@ -763,31 +765,40 @@ function getTemplateStyles(accountingSealSizePx: number): string {
     }
 
     .formal-items-table .col-name {
-      width: 45%;
+      width: 28%;
+      text-align: left;
+    }
+
+    .formal-items-table .col-spec {
+      width: 16%;
       text-align: left;
     }
 
     .formal-items-table .col-qty {
-      width: 10%;
+      width: 9%;
       text-align: right;
     }
 
     .formal-items-table .col-unit {
-      width: 10%;
+      width: 9%;
       text-align: center;
     }
 
     .formal-items-table .col-price {
-      width: 15%;
+      width: 17%;
       text-align: right;
     }
 
     .formal-items-table .col-total {
-      width: 20%;
+      width: 21%;
       text-align: right;
     }
 
     .formal-items-table .item-name {
+      text-align: left;
+    }
+
+    .formal-items-table .item-spec {
       text-align: left;
     }
 

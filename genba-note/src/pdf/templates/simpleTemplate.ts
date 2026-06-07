@@ -324,16 +324,18 @@ function getSimpleStyles(sealSizePx: number): string {
       -webkit-print-color-adjust: exact;
     }
 
-    .simple-items-table .col-name { width: 45%; }
-    .simple-items-table .col-qty { width: 10%; text-align: right; }
-    .simple-items-table .col-unit { width: 10%; text-align: center; }
-    .simple-items-table .col-price { width: 15%; text-align: right; }
-    .simple-items-table .col-total { width: 20%; text-align: right; }
+    .simple-items-table .col-name { width: 28%; }
+    .simple-items-table .col-spec { width: 16%; text-align: left; }
+    .simple-items-table .col-qty { width: 9%; text-align: right; }
+    .simple-items-table .col-unit { width: 9%; text-align: center; }
+    .simple-items-table .col-price { width: 17%; text-align: right; }
+    .simple-items-table .col-total { width: 21%; text-align: right; }
 
     .simple-items-table .item-qty,
     .simple-items-table .item-price,
     .simple-items-table .item-total { text-align: right; }
     .simple-items-table .item-unit { text-align: center; }
+    .simple-items-table .item-spec { text-align: left; }
 
     /* === Totals section (right-aligned with dotted borders) === */
     .simple-totals-section {
@@ -699,13 +701,14 @@ function renderIssuerBlock(
 
 /**
  * Render line items table (header: #333 dark gray)
- * Columns: 摘要 | 数量 | 単位 | 単価（税抜）| 金額（税抜）
+ * Columns: 名称 | 仕様 | 数量 | 単位 | 単価（税抜）| 金額（税抜）
  */
 function renderLineItemsTable(doc: DocumentWithTotals): string {
   const rows = doc.lineItemsCalculated.map((item) => {
     return `
         <tr>
           <td class="item-name">${escapeHtml(item.name)}</td>
+          <td class="item-spec">${escapeHtml(item.spec ?? '')}</td>
           <td class="item-qty">${formatQuantity(item.quantityMilli)}</td>
           <td class="item-unit">${escapeHtml(item.unit)}</td>
           <td class="item-price">${formatCurrency(item.unitPrice)}円</td>
@@ -717,7 +720,8 @@ function renderLineItemsTable(doc: DocumentWithTotals): string {
     <table class="simple-items-table">
       <thead>
         <tr>
-          <th class="col-name">摘要</th>
+          <th class="col-name">名称</th>
+          <th class="col-spec">仕様</th>
           <th class="col-qty">数量</th>
           <th class="col-unit">単位</th>
           <th class="col-price">単価（税抜）</th>

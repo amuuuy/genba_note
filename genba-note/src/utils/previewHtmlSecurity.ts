@@ -9,14 +9,36 @@
 const CSP_META =
   '<meta http-equiv="Content-Security-Policy" content="script-src \'none\';">';
 
-/** Scale document body to fit within the viewport height (no scrolling). */
+/**
+ * Scale document body to fit within the viewport (no scrolling).
+ *
+ * Uses the smaller of the height-fit and width-fit scale (min scale),
+ * mirroring the print-side singlePageService enforcement. Scaling by height
+ * alone left horizontal overflow uncorrected: when the rendered page was wider
+ * than the viewport, the right edge was clipped and narrowed cells wrapped text
+ * vertically (one character per line). Taking min(scaleH, scaleW) makes the
+ * page fit both axes. The height-only case is unchanged (scaleW = 1).
+ *
+ * transformOrigin depends on whether the page overflows horizontally:
+ *  - width overflow (bodyW > viewW): use 'top left' so the page is anchored to the
+ *    left edge. Center origin offsets the scaled content right by (bodyW - viewW)/2;
+ *    when the page is wider than the viewport this can push the right edge outside
+ *    [0, viewW] and clip it. We anchor left for every width-overflow case (width-
+ *    bound, height-bound, or tie) so the result is always safe.
+ *  - width fits (bodyW <= viewW): use 'top center' to preserve the existing
+ *    horizontally-centered preview (no regression for the common tall-page case).
+ */
 export const FIT_TO_SCREEN_SCRIPT = `
 (function() {
   var bodyH = document.body.scrollHeight;
+  var bodyW = document.body.scrollWidth;
   var viewH = window.innerHeight;
-  if (bodyH > viewH) {
-    var scale = viewH / bodyH;
-    document.body.style.transformOrigin = 'top center';
+  var viewW = window.innerWidth;
+  var scaleH = bodyH > viewH ? viewH / bodyH : 1;
+  var scaleW = bodyW > viewW ? viewW / bodyW : 1;
+  var scale = Math.min(scaleH, scaleW);
+  if (scale < 1) {
+    document.body.style.transformOrigin = bodyW > viewW ? 'top left' : 'top center';
     document.body.style.transform = 'scale(' + scale + ')';
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
